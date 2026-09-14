@@ -1,9 +1,10 @@
 """Active living projectiles with pixel collision, chemical trails, and triggers."""
 
 import math
-from typing import List, Optional, Tuple
-import pygame
+from typing import Any, List, Optional, Tuple
 import numpy as np
+import pygame
+import pymunk
 
 from py_noita.simulation.grid import SimulationGrid
 from py_noita.simulation.materials import (
@@ -135,6 +136,23 @@ class Projectile:
                                 self.alive = False
                                 return spawned_children
                             self.pierce_health -= 1
+
+            # 1b. Rigid body / Prop collision
+            pw = getattr(grid, "physics_world", None)
+            if pw and pw.bodies:
+                for b in pw.bodies:
+                    if b.alive and b.contains_point(nx, ny):
+                        b.take_damage(self.damage)
+                        b.body.apply_impulse_at_world_point(
+                            pymunk.Vec2d(self.vx * self.damage * 0.4, self.vy * self.damage * 0.4),
+                            (nx, ny),
+                        )
+                        self._handle_impact(grid, int(nx), int(ny))
+                        spawned_children.extend(self._trigger_payload(nx, ny))
+                        if not self.piercing or self.pierce_health <= 0:
+                            self.alive = False
+                            return spawned_children
+                        self.pierce_health -= 1
 
             # 2. Terrain collision
             ix, iy = int(nx), int(ny)

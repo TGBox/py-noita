@@ -16,7 +16,7 @@
     - Pixel-Explosionen üben physikalische Impulse und Drehmomente auf starre Körper aus.
     - Kollisionsmasken zwischen Pixel-Gitter und konvexen Polygonen optimieren.
 
-[ ] (A) [GAMEPLAY] Organische zerstörbare Umweltobjekte (Props) integrieren.
+[x] (A) [GAMEPLAY] Organische zerstörbare Umweltobjekte (Props) integrieren.
     - Rollende Säure-Gallenblasen (zerplatzen bei Aufprall oder Beschuss in Magensäure).
     - Instabile Biogas-Zysten (explodieren verheerend bei Kontakt mit Projektilen oder Feuer).
     - Schwimmende Knorpel-Flöße auf Blut- und Säureseen.

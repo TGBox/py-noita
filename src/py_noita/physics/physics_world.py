@@ -87,6 +87,7 @@ class PhysicsWorld:
         cam_y: int,
         view_w: int,
         view_h: int,
+        enemies: Optional[List[Any]] = None,
     ) -> None:
         """Simulate rigid body step and couple with the pixel grid."""
         # 1. Step Pymunk physics
@@ -97,10 +98,27 @@ class PhysicsWorld:
             self._pre_physics_terrain_collision()
             self.space.step(sub_dt)
 
-        # 2. Pixel displacement and crushing
+        # 2. Pixel displacement, buoyancy, and crushing
         self._displace_and_crush_pixels()
 
-        # 3. Handle destroyed bodies
+        # 3. Enemy crushing impacts (e.g. rolling minecarts or heavy props)
+        if enemies:
+            for b in self.bodies:
+                if not b.alive:
+                    continue
+                spd = math.hypot(b.velocity[0], b.velocity[1])
+                if spd > 2.5:
+                    hw = b.width * 0.5 if b.shape_type != "circle" else b.radius
+                    hh = b.height * 0.5 if b.shape_type != "circle" else b.radius
+                    for e in enemies:
+                        if getattr(e, "alive", False):
+                            if abs(b.x - e.center_x) < (hw + e.width * 0.5) and abs(b.y - e.center_y) < (hh + e.height * 0.5):
+                                crush_dmg = spd * (b.body.mass / 6.0) * 3.5
+                                e.take_damage(crush_dmg, "CRUSH")
+                                # Dampen body velocity
+                                b.body.velocity = (b.body.velocity.x * 0.45, b.body.velocity.y * 0.45)
+
+        # 4. Handle destroyed bodies
         surviving = []
         for b in self.bodies:
             if not b.alive:
@@ -211,6 +229,9 @@ class PhysicsWorld:
             by0 = max(1, int(pos.y - half_h))
             by1 = min(self.grid.height - 2, int(pos.y + half_h))
 
+            submerged_count = 0
+            fire_contact = False
+
             # Sample overlapping cells
             for y in range(by0, by1 + 1):
                 for x in range(bx0, bx1 + 1):
@@ -219,7 +240,12 @@ class PhysicsWorld:
                         if mat == MAT_AIR:
                             continue
 
+                        if mat == MAT_FIRE:
+                            fire_contact = True
+
                         state = PROP_STATE[mat]
+                        if state == STATE_LIQUID:
+                            submerged_count += 1
 
                         # Crushing soft tissue at high impact
                         if mat == MAT_TISSUE and speed > 4.5:
@@ -262,6 +288,19 @@ class PhysicsWorld:
                                     self.grid.grid[y, x] = MAT_AIR
                                     self.grid.mark_dirty(x, ty)
                                     self.grid.mark_dirty(x, y)
+
+            # Buoyant upward force on floating objects (e.g. Cartilage Rafts)
+            if getattr(b, "buoyant", False) and submerged_count > 0:
+                buoyancy = min(2.5, submerged_count / 8.0) * self.space.gravity.y * b.body.mass * 1.5
+                b.body.apply_force_at_world_point(pymunk.Vec2d(0.0, -buoyancy), b.body.position)
+                b.body.velocity = (b.body.velocity.x * 0.94, b.body.velocity.y * 0.92)
+
+            # Fire contact reactions (Biogas cysts explode!)
+            if fire_contact:
+                if b.name == "Biogas-Zyste":
+                    b.take_damage(999.0)  # Instantly explode
+                else:
+                    b.take_damage(2.0)
 
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         """Render all active rigid bodies."""

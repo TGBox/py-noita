@@ -2,10 +2,17 @@
 
 import math
 import random
-from typing import List, Tuple
+from typing import Any, List, Optional, Tuple
 import numpy as np
 
 from py_noita.config import WORLD_HEIGHT, WORLD_WIDTH
+from py_noita.physics.props import (
+    AcidGallbladder,
+    BiogasCyst,
+    BoneMinecart,
+    CartilageRaft,
+    ChitinShield,
+)
 from py_noita.simulation.grid import SimulationGrid
 from py_noita.simulation.materials import (
     MAT_AIR,
@@ -45,6 +52,7 @@ class LootCyst:
 def generate_world_level(
     grid: SimulationGrid,
     biome: Biome,
+    physics_world: Optional[Any] = None,
 ) -> Tuple[Tuple[float, float], WorldPortal, List[Tuple[float, float, str]], List[LootCyst]]:
     """Generate a procedural subterranean organ level for the given biome.
     Returns: (player_spawn_pos, exit_portal, enemy_spawn_points, loot_cysts).
@@ -154,4 +162,47 @@ def generate_world_level(
             reward = "GENE" if random.random() < 0.4 else "BIOMASS"
             loot_cysts.append(LootCyst(float(cx), float(cy), reward))
 
+    # 10. Organic Destructible Props
+    pw = physics_world if physics_world is not None else getattr(grid, "physics_world", None)
+    if pw is not None:
+        spawn_biome_props(pw, grid, biome)
+
     return (spawn_x, spawn_y), exit_portal, enemy_spawns, loot_cysts
+
+
+def spawn_biome_props(physics_world, grid: SimulationGrid, biome: Biome, count: int = 14) -> None:
+    """Procedurally place organic environmental props into the level."""
+    w = grid.width
+    h = grid.height
+
+    # 1. Floating cartilage rafts on liquid pools
+    for px in range(25, max(30, w - 25), 20):
+        for py in range(15, max(20, h - 15), 10):
+            if grid.is_liquid(px, py) and grid.is_empty(px, py - 3):
+                raft = CartilageRaft(physics_world.space, float(px), float(py - 2), width=random.choice([24.0, 30.0]))
+                physics_world.add_body(raft)
+                break
+
+    # 2. Cavern props: Acid Gallbladders, Biogas Cysts, Bone Minecarts, Chitin Shields
+    attempts = 0
+    spawned = 0
+    min_y = max(15, int(h * 0.08))
+    max_y = max(min_y + 10, h - 20)
+    while spawned < count and attempts < 150:
+        attempts += 1
+        rx = random.randint(20, max(25, w - 25))
+        ry = random.randint(min_y, max_y)
+
+        if grid.is_empty(rx, ry) and (grid.is_solid(rx, ry + 4) or grid.is_solid(rx, ry + 6)):
+            prop_choice = random.random()
+            if prop_choice < 0.35:
+                prop = AcidGallbladder(physics_world.space, float(rx), float(ry))
+            elif prop_choice < 0.65:
+                prop = BiogasCyst(physics_world.space, float(rx), float(ry))
+            elif prop_choice < 0.85:
+                prop = BoneMinecart(physics_world.space, float(rx), float(ry))
+            else:
+                prop = ChitinShield(physics_world.space, float(rx), float(ry))
+
+            physics_world.add_body(prop)
+            spawned += 1
