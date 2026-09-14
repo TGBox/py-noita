@@ -50,7 +50,7 @@ from py_noita.ui.game_over import GameOverScreen
 from py_noita.ui.hover_info import get_hover_target
 from py_noita.ui.hud import HUD
 from py_noita.weapons.cannula import OrganCannula
-from py_noita.weapons.deck_evaluator import evaluate_cannula_fire
+from py_noita.weapons.deck_evaluator import MAX_ACTIVE_PROJECTILES, evaluate_cannula_fire
 from py_noita.weapons.gene import GENE_DICT
 from py_noita.weapons.projectile import Projectile
 from py_noita.world.biome import ALL_BIOMES, Biome
@@ -528,10 +528,11 @@ class Game:
                 )
 
                 if new_projs:
-                    # Apply perk damage multipliers
-                    for p in new_projs:
-                        p.damage = self.perk_manager.modify_damage_dealt(p.damage)
-                    self.projectiles.extend(new_projs)
+                    available = max(0, MAX_ACTIVE_PROJECTILES - len(self.projectiles))
+                    if available > 0:
+                        for p in new_projs[:available]:
+                            p.damage = self.perk_manager.modify_damage_dealt(p.damage)
+                        self.projectiles.extend(new_projs[:available])
                     self.camera.add_shake(0.12)
                     self.audio.play("shot", volume=0.8)
 
@@ -557,8 +558,12 @@ class Game:
             children = proj.update(self.grid, targets)
             if children:
                 spawned_child_projs.extend(children)
-        self.projectiles.extend(spawned_child_projs)
+        available_children = max(0, MAX_ACTIVE_PROJECTILES - len(self.projectiles))
+        if available_children > 0:
+            self.projectiles.extend(spawned_child_projs[:available_children])
         self.projectiles = [p for p in self.projectiles if p.alive]
+        if len(self.projectiles) > MAX_ACTIVE_PROJECTILES:
+            self.projectiles = self.projectiles[:MAX_ACTIVE_PROJECTILES]
 
         # 5. Update Explosion Debris
         self.explosion_debris = [d for d in self.explosion_debris if d.update(self.grid)]

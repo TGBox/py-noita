@@ -58,6 +58,7 @@ class Projectile:
         transmute_source: Optional[List[int]] = None,
         transmute_target: int = MAT_AIR,
         transmute_radius: int = 0,
+        trigger_depth: int = 0,
     ):
         self.x = x
         self.y = y
@@ -79,6 +80,8 @@ class Projectile:
         self.transmute_source = transmute_source
         self.transmute_target = transmute_target
         self.transmute_radius = transmute_radius
+        self.trigger_depth = trigger_depth
+        self.penetration_trigger_cooldown: int = 0
 
         self.trigger_type = trigger_type
         self.proximity_radius = proximity_radius
@@ -111,6 +114,8 @@ class Projectile:
             return []
 
         self.anim_time += 1.0
+        if self.penetration_trigger_cooldown > 0:
+            self.penetration_trigger_cooldown -= 1
         self.lifetime -= 1
         if self.lifetime <= 0:
             self.alive = False
@@ -256,8 +261,9 @@ class Projectile:
                         self.x += self.vx
                         self.y += self.vy
                         self._handle_impact(grid, ix, iy)
-                        if self.penetration_trigger:
+                        if self.penetration_trigger and self.penetration_trigger_cooldown <= 0:
                             spawned_children.extend(self._trigger_payload(nx, ny))
+                            self.penetration_trigger_cooldown = 3
                         continue
 
                     self._handle_impact(grid, ix, iy)
@@ -293,13 +299,34 @@ class Projectile:
             grid.spray_circle(ix, iy, radius=4, mat=self.impact_material, density=0.7)
 
     def _trigger_payload(self, hit_x: float, hit_y: float) -> List["Projectile"]:
-        """Instantiate payload child projectiles if triggered."""
+        """Instantiate payload child projectiles if triggered, with loop damping and depth limits."""
         if not self.payload_genes:
+            return []
+
+        # Recursion safety brake: max 8 generations
+        if self.trigger_depth >= 8:
             return []
 
         # Evaluate payload genes into new projectiles at hit coordinates
         from py_noita.weapons.deck_evaluator import evaluate_payload
-        return evaluate_payload(self.payload_genes, hit_x, hit_y, math.atan2(self.vy, self.vx), self.owner)
+        children = evaluate_payload(
+            self.payload_genes,
+            hit_x,
+            hit_y,
+            math.atan2(self.vy, self.vx),
+            self.owner,
+            shooter=self.shooter,
+            trigger_depth=self.trigger_depth + 1,
+        )
+
+        # Loop damping: diminish damage and lifetime for deeper nested generations
+        if self.trigger_depth > 0:
+            damp_factor = 0.85 ** self.trigger_depth
+            for child in children:
+                child.damage *= damp_factor
+                child.lifetime = max(8, int(child.lifetime * damp_factor))
+
+        return children
 
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         """Draw projectile with directional shape and glow."""

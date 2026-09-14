@@ -85,7 +85,7 @@
     - Meer aus Blut / Meer aus Magensäure (erzeugt massive Fluten von Flüssigkeiten).
     - Midas-Enzym (verwandelt organisches Gewebe bei Berührung in reines Biomasse-Gold).
 
-[ ] (B) [BALANCING] Kanülen-Verhalten, Wrapping und Rekursions-Sicherheitsnetz.
+[x] (B) [BALANCING] Kanülen-Verhalten, Wrapping und Rekursions-Sicherheitsnetz.
     - Exakte Nachbildung des Wand-Wrapping-Verhaltens (Deck-Neuaufruf bei ungenutztem Multicast).
     - Hard-Cap für Projektil-Splits (maximal 250 gleichzeitige Projektile, um Crashs bei extremen Builds zu verhindern).
     - Automatische Erkennung und Dämpfung von Endlos-Trigger-Schleifen.

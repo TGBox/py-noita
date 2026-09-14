@@ -9,6 +9,8 @@ from py_noita.weapons.cannula import OrganCannula
 from py_noita.weapons.gene import Gene, GeneType
 from py_noita.weapons.projectile import Projectile
 
+MAX_ACTIVE_PROJECTILES: int = 250
+
 
 class CastState:
     """Accumulated state across modifiers for the current cast burst."""
@@ -97,21 +99,37 @@ def evaluate_cannula_fire(
         sequence = list(range(num_genes))
         random.shuffle(sequence)
         pointer = 0
+        starting_pointer = 0
     else:
         sequence = list(range(num_genes))
         pointer = cannula.deck_pointer
+        starting_pointer = pointer
 
     spawned_projectiles: List[Projectile] = []
     cast_state = CastState()
     needed_projectiles = 1
     projectiles_cast = 0
     genes_evaluated = 0
+    has_wrapped = False
 
-    while genes_evaluated < num_genes and projectiles_cast < needed_projectiles:
+    while projectiles_cast < needed_projectiles:
+        # Check if we reached the end of the deck
+        if pointer >= num_genes:
+            if not cannula.shuffle and not has_wrapped and starting_pointer > 0:
+                # Noita Wand Wrapping: Re-call spells from discard (0 up to starting_pointer)
+                has_wrapped = True
+                pointer = 0
+            else:
+                break
+
+        # If wrapped, cannot draw past the discard pile (starting_pointer)
+        if has_wrapped and pointer >= starting_pointer:
+            break
+
         idx = sequence[pointer]
         gene = active_genes[idx]
 
-        pointer = (pointer + 1) % num_genes
+        pointer += 1
         genes_evaluated += 1
 
         # Check biomass cost
@@ -137,10 +155,14 @@ def evaluate_cannula_fire(
         # TRIGGER
         elif gene.gene_type == GeneType.TRIGGER:
             payload: List[Gene] = []
-            if genes_evaluated < num_genes:
+            if pointer >= num_genes and not cannula.shuffle and not has_wrapped and starting_pointer > 0:
+                has_wrapped = True
+                pointer = 0
+
+            if pointer < num_genes and (not has_wrapped or pointer < starting_pointer):
                 next_idx = sequence[pointer]
                 payload.append(active_genes[next_idx])
-                pointer = (pointer + 1) % num_genes
+                pointer += 1
                 genes_evaluated += 1
 
             new_projs = _dispatch_formation_projectiles(
@@ -178,38 +200,29 @@ def evaluate_cannula_fire(
             m_type = getattr(gene, "meta_type", "NONE")
             if m_type.startswith("DIVIDE_"):
                 mult = getattr(gene, "meta_multiplier", 1)
-                # Look ahead for target gene
-                if genes_evaluated < num_genes:
+                # Next gene to duplicate
+                if pointer < num_genes and (not has_wrapped or pointer < starting_pointer):
                     target_idx = sequence[pointer]
                     target_gene = active_genes[target_idx]
-                    pointer = (pointer + 1) % num_genes
+                    pointer += 1
                     genes_evaluated += 1
 
-                    # Apply recursion brake: if chaining multiple Divide By, cap multiplier
-                    polymerase_chains = [g for g in active_genes if getattr(g, "meta_type", "").startswith("DIVIDE_")]
-                    if len(polymerase_chains) > 3:
-                        mult = min(mult, 4)
+                    # Apply recursion brake for nested meta-genes
+                    if target_gene.gene_type == GeneType.META:
+                        mult = 1
 
                     if target_gene.gene_type == GeneType.MODIFIER:
                         for _ in range(mult):
                             cast_state.apply_modifier(target_gene)
-                    elif target_gene.gene_type == GeneType.MULTICAST:
-                        needed_projectiles += (target_gene.multicast_count - 1) * mult
                     elif target_gene.gene_type in (GeneType.PROJECTILE, GeneType.TRIGGER):
                         for _ in range(mult):
                             sub_projs = _dispatch_formation_projectiles(
-                                target_gene,
-                                cast_state,
-                                origin_x,
-                                origin_y,
-                                base_angle,
-                                cannula.spread,
-                                owner,
-                                payload=None,
-                                shooter=shooter,
+                                target_gene, cast_state, origin_x, origin_y, base_angle, cannula.spread, owner, payload=None, shooter=shooter
                             )
                             spawned_projectiles.extend(sub_projs)
                             projectiles_cast += max(1, len(sub_projs))
+                    elif target_gene.gene_type == GeneType.MULTICAST:
+                        needed_projectiles += (target_gene.multicast_count - 1) * mult
 
             elif m_type == "COPY_FIRST":
                 first_gene = next((g for g in cannula.genes if g.gene_type != GeneType.META), None)
@@ -268,18 +281,23 @@ def evaluate_cannula_fire(
                         spawned_projectiles.extend(sub_projs)
                         projectiles_cast += max(1, len(sub_projs))
 
+    # Hard-cap active projectiles spawned in one burst
+    if len(spawned_projectiles) > MAX_ACTIVE_PROJECTILES:
+        spawned_projectiles = spawned_projectiles[:MAX_ACTIVE_PROJECTILES]
 
     # Update cannula cooldowns and deck pointer
     if cannula.shuffle:
         cannula.deck_pointer = 0
         cannula.start_recharge(cast_state.recharge_mod)
     else:
-        cannula.deck_pointer = pointer
         total_delay = max(0.04, cannula.cast_delay + cast_state.cast_delay_mod)
         cannula.cast_cooldown = total_delay
 
-        if pointer == 0 or genes_evaluated >= num_genes:
+        if has_wrapped or pointer >= num_genes:
+            cannula.deck_pointer = 0
             cannula.start_recharge(cast_state.recharge_mod)
+        else:
+            cannula.deck_pointer = pointer
 
     return spawned_projectiles
 
@@ -294,68 +312,69 @@ def _dispatch_formation_projectiles(
     owner: str,
     payload: Optional[List[Gene]] = None,
     shooter: Optional[Any] = None,
+    trigger_depth: int = 0,
 ) -> List[Projectile]:
     """Emit one or multiple projectiles according to active multicast/formation layout."""
     fmt = state.formation_type
 
     if fmt == "DOUBLE_HELIX":
-        p1 = _create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, forced_pattern="HELIX_A")
-        p2 = _create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, forced_pattern="HELIX_B")
+        p1 = _create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, forced_pattern="HELIX_A", trigger_depth=trigger_depth)
+        p2 = _create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, forced_pattern="HELIX_B", trigger_depth=trigger_depth)
         return [p1, p2]
 
     elif fmt == "FAN_3":
         offsets = [-math.radians(15.0), 0.0, math.radians(15.0)]
-        return [_create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, angle_offset=off) for off in offsets]
+        return [_create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, angle_offset=off, trigger_depth=trigger_depth) for off in offsets]
 
     elif fmt == "FAN_5":
         offsets = [-math.radians(30.0), -math.radians(15.0), 0.0, math.radians(15.0), math.radians(30.0)]
-        return [_create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, angle_offset=off) for off in offsets]
+        return [_create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, angle_offset=off, trigger_depth=trigger_depth) for off in offsets]
 
     elif fmt == "RADIAL_8":
         offsets = [(i / 8.0) * math.pi * 2.0 for i in range(8)]
-        return [_create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, angle_offset=off) for off in offsets]
+        return [_create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, angle_offset=off, trigger_depth=trigger_depth) for off in offsets]
 
     elif fmt == "RADIAL_12":
         offsets = [(i / 12.0) * math.pi * 2.0 for i in range(12)]
-        return [_create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, angle_offset=off) for off in offsets]
+        return [_create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, angle_offset=off, trigger_depth=trigger_depth) for off in offsets]
 
     elif fmt == "ORBITAL_2":
         return [
-            _create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, forced_pattern="ORBIT", orbit_angle=0.0),
-            _create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, forced_pattern="ORBIT", orbit_angle=math.pi),
+            _create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, forced_pattern="ORBIT", orbit_angle=0.0, trigger_depth=trigger_depth),
+            _create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, forced_pattern="ORBIT", orbit_angle=math.pi, trigger_depth=trigger_depth),
         ]
 
     elif fmt == "ORBITAL_4":
         return [
-            _create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, forced_pattern="ORBIT", orbit_angle=(i / 4.0) * math.pi * 2.0)
+            _create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, forced_pattern="ORBIT", orbit_angle=(i / 4.0) * math.pi * 2.0, trigger_depth=trigger_depth)
             for i in range(4)
         ]
 
     elif fmt == "FRONT_BACK":
         offsets = [0.0, math.pi]
-        return [_create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, angle_offset=off) for off in offsets]
+        return [_create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, angle_offset=off, trigger_depth=trigger_depth) for off in offsets]
 
     elif fmt == "TRI_DIRECTIONAL":
         offsets = [0.0, (2.0 * math.pi / 3.0), (4.0 * math.pi / 3.0)]
-        return [_create_projectile(gene, state, x, y, base_angle, 0.0, owner, payload, shooter, angle_offset=off) for off in offsets]
+        return [_create_projectile(gene, state, x, y, base_angle, 0.0, owner, payload, shooter, angle_offset=off, trigger_depth=trigger_depth) for off in offsets]
 
     elif fmt == "QUAD_CARDINAL":
         offsets = [0.0, math.pi / 2.0, math.pi, 3.0 * math.pi / 2.0]
-        return [_create_projectile(gene, state, x, y, base_angle, 0.0, owner, payload, shooter, angle_offset=off) for off in offsets]
+        return [_create_projectile(gene, state, x, y, base_angle, 0.0, owner, payload, shooter, angle_offset=off, trigger_depth=trigger_depth) for off in offsets]
 
     elif fmt == "HEX_BURST":
         offsets = [(i / 6.0) * math.pi * 2.0 for i in range(6)]
-        return [_create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, angle_offset=off) for off in offsets]
+        return [_create_projectile(gene, state, x, y, 0.0, 0.0, owner, payload, shooter, angle_offset=off, trigger_depth=trigger_depth) for off in offsets]
 
     elif fmt == "LINE_STREAM":
         # Staggered 3 bullets in a line
         return [
-            _create_projectile(gene, state, x - math.cos(base_angle) * i * 6.0, y - math.sin(base_angle) * i * 6.0, base_angle, wand_spread, owner, payload, shooter)
+            _create_projectile(gene, state, x - math.cos(base_angle) * i * 6.0, y - math.sin(base_angle) * i * 6.0, base_angle, wand_spread, owner, payload, shooter, trigger_depth=trigger_depth)
             for i in range(3)
         ]
 
     # Standard single projectile
-    return [_create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter)]
+    return [_create_projectile(gene, state, x, y, base_angle, wand_spread, owner, payload, shooter, trigger_depth=trigger_depth)]
 
 
 def _create_projectile(
@@ -371,6 +390,7 @@ def _create_projectile(
     angle_offset: float = 0.0,
     orbit_angle: float = 0.0,
     forced_pattern: Optional[str] = None,
+    trigger_depth: int = 0,
 ) -> Projectile:
     """Build a Projectile instance combining Gene and CastState attributes."""
     total_spread_deg = wand_spread + state.spread_add + gene.spread_mod
@@ -430,6 +450,7 @@ def _create_projectile(
         transmute_source=trans_source,
         transmute_target=trans_target,
         transmute_radius=trans_rad,
+        trigger_depth=trigger_depth,
     )
 
 
@@ -440,6 +461,7 @@ def evaluate_payload(
     base_angle: float,
     owner: str = "PLAYER",
     shooter: Optional[Any] = None,
+    trigger_depth: int = 0,
 ) -> List[Projectile]:
     """Evaluate payload genes on trigger impact or timer expiration."""
     spawned: List[Projectile] = []
@@ -459,7 +481,11 @@ def evaluate_payload(
                 owner=owner,
                 payload=None,
                 shooter=shooter,
+                trigger_depth=trigger_depth,
             )
             spawned.extend(projs)
+
+    if len(spawned) > MAX_ACTIVE_PROJECTILES:
+        spawned = spawned[:MAX_ACTIVE_PROJECTILES]
 
     return spawned
