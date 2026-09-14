@@ -1,0 +1,679 @@
+"""Py-Noita: Bio-Horror Mikrokosmos Pixel Physics Roguelite - Main Game Engine."""
+
+import math
+import os
+import random
+import sys
+from typing import List, Optional
+import pygame
+
+from py_noita.audio.audio_manager import AudioManager
+from py_noita.config import (
+    COLOR_ACID_GLOW,
+    COLOR_BG_DARK,
+    COLOR_BIOGAS_GLOW,
+    COLOR_MUTAGEN_GLOW,
+    COLOR_NERVE_GLOW,
+    COLOR_PLAYER_GLOW,
+    RES_FULL_HD,
+    RES_ULTRAWIDE,
+    RES_WINDOWED_1080,
+    RES_WINDOWED_UW,
+    TARGET_FPS,
+    WORLD_HEIGHT,
+    WORLD_WIDTH,
+)
+from py_noita.entities.ai import update_enemy_ai
+from py_noita.entities.enemy import Enemy, create_enemy
+from py_noita.entities.player import Player
+from py_noita.input.input_handler import InputHandler
+from py_noita.perks.perk_definitions import ALL_PERKS
+from py_noita.perks.perk_manager import PerkManager
+from py_noita.rendering.camera import Camera
+from py_noita.rendering.lighting import LightSource, LightingEngine
+from py_noita.rendering.particles import ParticleSystem
+from py_noita.rendering.renderer import Renderer
+from py_noita.simulation.explosion import ExplosionDebris, create_explosion
+from py_noita.simulation.grid import SimulationGrid
+from py_noita.simulation.materials import (
+    MAT_ACID,
+    MAT_AIR,
+    MAT_BLOOD,
+    MAT_MUTAGEN,
+    MAT_TISSUE,
+)
+from py_noita.ui.cannula_editor import CannulaEditor
+from py_noita.ui.codex import ALL_STRAINS, BioCodex
+from py_noita.ui.game_over import GameOverScreen
+from py_noita.ui.hud import HUD
+from py_noita.weapons.cannula import OrganCannula
+from py_noita.weapons.deck_evaluator import evaluate_cannula_fire
+from py_noita.weapons.gene import GENE_DICT
+from py_noita.weapons.projectile import Projectile
+from py_noita.world.biome import ALL_BIOMES, Biome
+from py_noita.world.generator import LootCyst, WorldPortal, generate_world_level
+from py_noita.world.incubation_node import IncubationNode
+
+
+# Game States
+STATE_MENU = "MENU"
+STATE_PLAYING = "PLAYING"
+STATE_INCUBATION = "INCUBATION"
+STATE_TUNING = "TUNING"
+STATE_GAME_OVER = "GAME_OVER"
+
+
+class Game:
+    """Master game loop, state controller, and integration coordinator."""
+
+    def __init__(self):
+        pygame.init()
+        pygame.display.set_caption("Py-Noita // Mikrokosmos Bio-Horror")
+
+        # Display Setup
+        self.is_fullscreen = False
+        self.is_ultrawide = False
+        self.screen_res = RES_WINDOWED_1080
+        self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
+        self.clock = pygame.time.Clock()
+
+        # Audio & Input
+        self.audio = AudioManager()
+        self.input = InputHandler()
+
+        # Rendering & Camera
+        self.renderer = Renderer(self.screen_res)
+        self.camera = Camera(self.renderer.view_w, self.renderer.view_h)
+        self.lighting = LightingEngine(self.renderer.view_w, self.renderer.view_h)
+        self.particles = ParticleSystem()
+
+        # UI
+        self.hud = HUD()
+        self.editor = CannulaEditor()
+        self.game_over_screen = GameOverScreen()
+        self.codex = BioCodex()
+        self.font = pygame.font.SysFont("Arial", 12)
+        self.title_font = pygame.font.SysFont("Arial", 22, bold=True)
+
+        # Simulation World
+        self.grid = SimulationGrid(WORLD_WIDTH, WORLD_HEIGHT)
+
+        # Gameplay Entities & State
+        self.state = STATE_MENU
+        self.current_biome_index: int = 0
+        self.player: Optional[Player] = None
+        self.perk_manager = PerkManager()
+        self.enemies: List[Enemy] = []
+        self.projectiles: List[Projectile] = []
+        self.explosion_debris: List[ExplosionDebris] = []
+        self.loot_cysts: List[LootCyst] = []
+        self.exit_portal: Optional[WorldPortal] = None
+        self.incubation_node: Optional[IncubationNode] = None
+
+        # Statistics
+        self.kills_this_run: int = 0
+        self.earned_mutagen: int = 0
+        self.is_victory: bool = False
+
+        # Strain selection in menu
+        self.menu_strain_index: int = 0
+
+    @property
+    def current_biome(self) -> Biome:
+        return ALL_BIOMES[min(self.current_biome_index, len(ALL_BIOMES) - 1)]
+
+    def toggle_display_resolution(self) -> None:
+        """Toggle between Full HD 16:9 and Ultrawide 21:9."""
+        self.is_ultrawide = not self.is_ultrawide
+        if self.is_fullscreen:
+            self.screen_res = RES_ULTRAWIDE if self.is_ultrawide else RES_FULL_HD
+            self.screen = pygame.display.set_mode(self.screen_res, pygame.FULLSCREEN)
+        else:
+            self.screen_res = RES_WINDOWED_UW if self.is_ultrawide else RES_WINDOWED_1080
+            self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
+
+        self.renderer.set_resolution(self.screen_res)
+        self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
+        self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
+
+    def toggle_fullscreen_mode(self) -> None:
+        """Toggle windowed vs fullscreen display."""
+        self.is_fullscreen = not self.is_fullscreen
+        if self.is_fullscreen:
+            self.screen_res = RES_ULTRAWIDE if self.is_ultrawide else RES_FULL_HD
+            self.screen = pygame.display.set_mode(self.screen_res, pygame.FULLSCREEN)
+        else:
+            self.screen_res = RES_WINDOWED_UW if self.is_ultrawide else RES_WINDOWED_1080
+            self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
+
+        self.renderer.set_resolution(self.screen_res)
+        self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
+        self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
+
+    def start_new_run(self) -> None:
+        """Initialize a fresh run from the selected Symbiote strain."""
+        self.current_biome_index = 0
+        self.kills_this_run = 0
+        self.earned_mutagen = 0
+        self.is_victory = False
+        self.perk_manager = PerkManager()
+        self.projectiles.clear()
+        self.explosion_debris.clear()
+
+        # Load Biome 1
+        self.load_biome_level(0)
+
+        # Setup Player starting loadout from selected strain
+        selected_strain = ALL_STRAINS[self.menu_strain_index]
+        self.player.cannulas.clear()
+
+        # Starter Cannula 1
+        starter_c = OrganCannula(
+            name="Organ-Kanüle I",
+            capacity=4,
+            cast_delay=0.12,
+            recharge_time=0.45,
+            biomass_max=120.0,
+            biomass_recharge=40.0,
+            spread=2.0,
+            shuffle=False,
+        )
+        for gid in selected_strain.starter_gene_ids:
+            if gid in GENE_DICT:
+                starter_c.add_gene(GENE_DICT[gid])
+        self.player.cannulas.append(starter_c)
+
+        # Starter Cannula 2 (Bomb / Utility)
+        starter_c2 = OrganCannula(
+            name="Tumor-Schleuder",
+            capacity=2,
+            cast_delay=0.5,
+            recharge_time=0.9,
+            biomass_max=80.0,
+            biomass_recharge=25.0,
+            spread=4.0,
+            shuffle=False,
+        )
+        starter_c2.add_gene(GENE_DICT["BONE_BOMB"])
+        self.player.cannulas.append(starter_c2)
+
+        # Set starting liquid gland
+        self.player.glands[0].material_id = selected_strain.starter_gland_mat
+        self.player.glands[0].current_amount = 80
+
+        # Apply starting strain perk if any
+        if selected_strain.bonus_perk_id:
+            bonus_perk = next((p for p in ALL_PERKS if p.id == selected_strain.bonus_perk_id), None)
+            if bonus_perk:
+                self.perk_manager.add_perk(bonus_perk, self.player)
+
+        self.state = STATE_PLAYING
+
+    def load_biome_level(self, biome_index: int) -> None:
+        """Generate and enter a subterranean biome level."""
+        self.current_biome_index = biome_index
+        biome = self.current_biome
+
+        # Generate cavern grid
+        spawn_pos, portal, enemy_spawns, loot = generate_world_level(self.grid, biome)
+        self.exit_portal = portal
+        self.loot_cysts = loot
+
+        # Create/relocate player
+        if self.player is None:
+            self.player = Player(spawn_pos[0], spawn_pos[1])
+        else:
+            self.player.x = spawn_pos[0]
+            self.player.y = spawn_pos[1]
+            self.player.vx = 0.0
+            self.player.vy = 0.0
+
+        # Spawn enemies
+        self.enemies.clear()
+        for ex, ey, etype in enemy_spawns:
+            self.enemies.append(create_enemy(etype, ex, ey))
+
+        self.projectiles.clear()
+        self.particles.particles.clear()
+        self.audio.play("squelch", volume=0.7)
+
+    def enter_incubation_node(self) -> None:
+        """Generate and enter the Incubation Node sanctuary."""
+        self.state = STATE_INCUBATION
+        # Incubation node room
+        room_w, room_h = 420, 160
+        start_x = (WORLD_WIDTH - room_w) // 2
+        start_y = 120
+
+        self.incubation_node = IncubationNode(start_x, start_y, room_w, room_h)
+        self.incubation_node.generate_structure(self.grid)
+
+        # Teleport player into sanctuary
+        self.player.x = float(start_x + 30)
+        self.player.y = float(start_y + room_h - 40)
+        self.player.vx = 0.0
+        self.player.vy = 0.0
+
+        self.enemies.clear()
+        self.projectiles.clear()
+        self.audio.play("pickup", volume=0.9)
+
+    def run(self) -> None:
+        """Master execution loop."""
+        running = True
+        while running:
+            dt = self.clock.tick(TARGET_FPS) / 1000.0
+            events = pygame.event.get()
+
+            for event in events:
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.VIDEORESIZE:
+                    self.screen_res = (event.w, event.h)
+                    self.renderer.set_resolution(self.screen_res)
+                    self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
+                    self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
+
+            # Route update and render by game state
+            if self.state == STATE_MENU:
+                self._update_menu(events)
+                self._draw_menu()
+            elif self.state == STATE_PLAYING:
+                self._update_playing(dt, events)
+                self._draw_playing()
+            elif self.state == STATE_INCUBATION:
+                self._update_incubation(dt, events)
+                self._draw_playing()
+            elif self.state == STATE_TUNING:
+                self._update_tuning(events)
+                self._draw_tuning()
+            elif self.state == STATE_GAME_OVER:
+                self._update_game_over(events)
+                self._draw_game_over()
+
+            pygame.display.flip()
+
+        pygame.quit()
+
+    def _update_menu(self, events) -> None:
+        """Handle main menu / strain selection input."""
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_d, pygame.K_RIGHT):
+                    self.menu_strain_index = (self.menu_strain_index + 1) % len(ALL_STRAINS)
+                elif event.key in (pygame.K_a, pygame.K_LEFT):
+                    self.menu_strain_index = (self.menu_strain_index - 1) % len(ALL_STRAINS)
+                elif event.key == pygame.K_u:
+                    # Try to unlock selected strain
+                    strain = ALL_STRAINS[self.menu_strain_index]
+                    if self.codex.unlock_strain(strain.strain_id):
+                        self.audio.play("pickup", volume=1.0)
+                elif event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                    strain = ALL_STRAINS[self.menu_strain_index]
+                    if strain.strain_id in self.codex.unlocked_strains:
+                        self.start_new_run()
+                elif event.key == pygame.K_F1:
+                    self.toggle_display_resolution()
+                elif event.key == pygame.K_F11:
+                    self.toggle_fullscreen_mode()
+
+    def _draw_menu(self) -> None:
+        """Render main menu with strain unlocks and title."""
+        self.screen.fill((12, 8, 16))
+        view_w, view_h = self.screen_res
+
+        # Title
+        title = self.title_font.render("PY-NOITA // MIKROKOSMOS", True, (255, 60, 80))
+        sub = self.font.render("Jeder Pixel physikalisch simuliert  •  Bio-Horror Deckbuilder", True, (190, 180, 170))
+        self.screen.blit(title, (view_w // 2 - title.get_width() // 2, 80))
+        self.screen.blit(sub, (view_w // 2 - sub.get_width() // 2, 115))
+
+        # Mutagen Currency
+        mut_surf = self.font.render(f"Mutagen-Essenz (Labor-Konto): {self.codex.mutagen_essence} M", True, (220, 50, 240))
+        self.screen.blit(mut_surf, (view_w // 2 - mut_surf.get_width() // 2, 150))
+
+        # Strain Card
+        strain = ALL_STRAINS[self.menu_strain_index]
+        is_unlocked = strain.strain_id in self.codex.unlocked_strains
+
+        card_w, card_h = 360, 140
+        card_x = view_w // 2 - card_w // 2
+        card_y = 185
+        pygame.draw.rect(self.screen, (25, 18, 30), (card_x, card_y, card_w, card_h), border_radius=6)
+        pygame.draw.rect(self.screen, (160, 80, 110) if is_unlocked else (70, 60, 75), (card_x, card_y, card_w, card_h), 2, border_radius=6)
+
+        strain_title = self.font.render(f"< {strain.name} >" if is_unlocked else f"< {strain.name} (GESPERRT) >", True, (255, 230, 120) if is_unlocked else (150, 140, 145))
+        self.screen.blit(strain_title, (card_x + card_w // 2 - strain_title.get_width() // 2, card_y + 15))
+
+        desc = self.font.render(strain.description, True, (210, 200, 190))
+        self.screen.blit(desc, (card_x + card_w // 2 - desc.get_width() // 2, card_y + 45))
+
+        if is_unlocked:
+            start_prompt = self.font.render("[LEERTASTE] Abstieg in den Wirt beginnen", True, (80, 255, 120))
+            self.screen.blit(start_prompt, (card_x + card_w // 2 - start_prompt.get_width() // 2, card_y + 90))
+        else:
+            unlock_prompt = self.font.render(f"[U] Freischalten ({strain.unlock_cost} Mutagen)", True, (240, 120, 220))
+            self.screen.blit(unlock_prompt, (card_x + card_w // 2 - unlock_prompt.get_width() // 2, card_y + 90))
+
+        # Controls info at bottom
+        ctrl_info = self.font.render("[F1] Auflösung (Full HD / Ultrawide)  |  [F11] Vollbild  |  WASD + Maus-Zielen", True, (130, 125, 120))
+        self.screen.blit(ctrl_info, (view_w // 2 - ctrl_info.get_width() // 2, view_h - 40))
+
+    def _update_playing(self, dt: float, events) -> None:
+        """Handle active gameplay frame."""
+        # 1. Process Input
+        cam_x, cam_y = self.camera.get_offset()
+        input_state = self.input.process_events(
+            events,
+            self.renderer.dest_rect,
+            cam_x,
+            cam_y,
+            self.renderer.view_w,
+            self.renderer.view_h,
+            self.player.center_x,
+            self.player.center_y,
+        )
+
+        if input_state.toggle_fullscreen:
+            self.toggle_fullscreen_mode()
+        if input_state.toggle_resolution:
+            self.toggle_display_resolution()
+        if input_state.toggle_inventory:
+            self.state = STATE_TUNING
+            return
+
+        # Weapon / Gland selection
+        if input_state.select_cannula is not None and input_state.select_cannula < len(self.player.cannulas):
+            self.player.active_cannula_index = input_state.select_cannula
+        if input_state.select_gland is not None:
+            self.player.active_gland_index = input_state.select_gland
+
+        # Player Movement
+        self.player.aim_angle = input_state.aim_angle
+        self.player.apply_input(input_state.move_x, input_state.hover)
+
+        # 2. Player Weapon Firing
+        if self.player.cannulas and 0 <= self.player.active_cannula_index < len(self.player.cannulas):
+            active_c = self.player.cannulas[self.player.active_cannula_index]
+            active_c.update(dt)
+
+            if input_state.fire_primary:
+                new_projs = evaluate_cannula_fire(
+                    active_c,
+                    self.player.center_x,
+                    self.player.center_y,
+                    self.player.aim_angle,
+                    owner="PLAYER",
+                )
+                if new_projs:
+                    # Apply perk damage multipliers
+                    for p in new_projs:
+                        p.damage = self.perk_manager.modify_damage_dealt(p.damage)
+                    self.projectiles.extend(new_projs)
+                    self.camera.add_shake(0.12)
+                    self.audio.play("shot", volume=0.8)
+
+        # Player Liquid Gland Spraying / Sucking
+        if input_state.fire_secondary:
+            mat = self.player.spray_liquid(self.grid)
+            if mat:
+                self.audio.play("acid" if mat == MAT_ACID else "squelch", volume=0.4)
+
+        if input_state.suck_liquid:
+            if self.player.suck_liquid(self.grid):
+                self.audio.play("squelch", volume=0.3)
+
+        # 3. Update Physics & Fallingsand Simulation
+        self.grid.update(cam_x, cam_y, self.renderer.view_w, self.renderer.view_h)
+        self.player.update_physics(self.grid)
+        self.perk_manager.update(dt, self.player, self.grid)
+
+        # 4. Update Projectiles
+        targets = self.enemies
+        spawned_child_projs: List[Projectile] = []
+        for proj in self.projectiles:
+            children = proj.update(self.grid, targets)
+            if children:
+                spawned_child_projs.extend(children)
+        self.projectiles.extend(spawned_child_projs)
+        self.projectiles = [p for p in self.projectiles if p.alive]
+
+        # 5. Update Explosion Debris
+        self.explosion_debris = [d for d in self.explosion_debris if d.update(self.grid)]
+
+        # 6. Update Enemies & AI
+        spawned_hostile_projs: List[Projectile] = []
+        spawned_minions: List[Enemy] = []
+        for enemy in self.enemies:
+            enemy.update_physics(self.grid)
+            e_projs, e_minions = update_enemy_ai(enemy, self.player, self.grid, dt)
+            spawned_hostile_projs.extend(e_projs)
+            spawned_minions.extend(e_minions)
+
+            # Check enemy death
+            if not enemy.alive:
+                self.kills_this_run += 1
+                self.player.biomass_currency += enemy.biomass_value
+                self.particles.spawn_blood_burst(enemy.center_x, enemy.center_y, count=18)
+                self.audio.play("bone_crack", volume=0.7)
+
+        self.enemies.extend(spawned_minions)
+        self.enemies = [e for e in self.enemies if e.alive]
+
+        # Hostile projectiles targeting player
+        for hp in spawned_hostile_projs:
+            hp.update(self.grid, [self.player])
+            self.projectiles.append(hp)
+
+        # 7. Check Loot Cysts
+        for cyst in self.loot_cysts:
+            if cyst.alive:
+                dist = math.hypot(self.player.center_x - cyst.x, self.player.center_y - cyst.y)
+                if dist < 16.0:
+                    cyst.alive = False
+                    self.player.biomass_currency += 35
+                    self.audio.play("pickup", volume=0.9)
+                    self.particles.spawn_spore_puff(cyst.x, cyst.y, count=12)
+
+        # 8. Check Exit Portal
+        if self.exit_portal and self.exit_portal.is_player_inside(self.player.center_x, self.player.center_y):
+            self.enter_incubation_node()
+
+        # 9. Camera & Particles
+        self.camera.update(
+            self.player.center_x,
+            self.player.center_y,
+            input_state.aim_world_x,
+            input_state.aim_world_y,
+        )
+        self.particles.update(self.grid)
+        self.audio.update(dt)
+
+        # 10. Check Player Death
+        if not self.player.alive:
+            self.earned_mutagen = self.codex.record_run(
+                self.current_biome_index + 1,
+                self.kills_this_run,
+                self.player.biomass_currency,
+            )
+            self.state = STATE_GAME_OVER
+
+    def _update_incubation(self, dt: float, events) -> None:
+        """Handle safe incubation node / holy mountain frame."""
+        cam_x, cam_y = self.camera.get_offset()
+        input_state = self.input.process_events(
+            events,
+            self.renderer.dest_rect,
+            cam_x,
+            cam_y,
+            self.renderer.view_w,
+            self.renderer.view_h,
+            self.player.center_x,
+            self.player.center_y,
+        )
+
+        if input_state.toggle_fullscreen:
+            self.toggle_fullscreen_mode()
+        if input_state.toggle_resolution:
+            self.toggle_display_resolution()
+        if input_state.toggle_inventory:
+            self.state = STATE_TUNING
+            return
+
+        self.player.aim_angle = input_state.aim_angle
+        self.player.apply_input(input_state.move_x, input_state.hover)
+        self.player.update_physics(self.grid)
+
+        # Incubation interactions (Healing pool, Perks, Shop)
+        new_perk = self.incubation_node.update(self.player)
+        if new_perk:
+            self.perk_manager.add_perk(new_perk, self.player)
+            self.audio.play("pickup", volume=1.0)
+            self.particles.spawn_spore_puff(self.player.center_x, self.player.center_y, count=25)
+
+        # Exit shaft drop (advance to next biome level)
+        ex, ey = self.incubation_node.exit_shaft_pos
+        if abs(self.player.center_x - ex) < 20 and self.player.y > ey:
+            next_idx = self.current_biome_index + 1
+            if next_idx >= len(ALL_BIOMES):
+                # Victory!
+                self.is_victory = True
+                self.earned_mutagen = self.codex.record_run(
+                    next_idx,
+                    self.kills_this_run,
+                    self.player.biomass_currency,
+                )
+                self.state = STATE_GAME_OVER
+            else:
+                self.load_biome_level(next_idx)
+                self.state = STATE_PLAYING
+
+        self.camera.update(self.player.center_x, self.player.center_y)
+        self.particles.update(self.grid)
+        self.audio.update(dt)
+
+    def _update_tuning(self, events) -> None:
+        """Handle organ-tuning deckbuilder GUI."""
+        mouse_px, mouse_py = pygame.mouse.get_pos()
+        dest = self.renderer.dest_rect
+
+        # Map to internal simulation coordinates
+        if dest.width > 0 and dest.height > 0:
+            sim_mx = int(((mouse_px - dest.left) / dest.width) * self.renderer.view_w)
+            sim_my = int(((mouse_py - dest.top) / dest.height) * self.renderer.view_h)
+        else:
+            sim_mx, sim_my = 0, 0
+
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_TAB, pygame.K_ESCAPE, pygame.K_e):
+                    self.state = STATE_PLAYING if self.incubation_node is None else STATE_INCUBATION
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                self.editor.handle_click(sim_mx, sim_my, self.player)
+
+    def _update_game_over(self, events) -> None:
+        """Handle Game Over screen inputs."""
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    self.start_new_run()
+                elif event.key == pygame.K_ESCAPE:
+                    self.state = STATE_MENU
+
+    def _draw_playing(self) -> None:
+        """Render playing world, entities, lighting, and HUD."""
+        cam_x, cam_y = self.camera.get_offset()
+
+        # 1. Render Fallingsand Pixel World Grid
+        self.renderer.render_grid(self.grid.grid, self.grid.color_var, cam_x, cam_y)
+
+        # 2. Draw Entities
+        surf = self.renderer.sim_surface
+
+        # Portal
+        if self.exit_portal:
+            psx = int(self.exit_portal.x - cam_x)
+            psy = int(self.exit_portal.y - cam_y)
+            pulse = math.sin(pygame.time.get_ticks() * 0.005) * 3.0
+            pygame.draw.circle(surf, (180, 50, 240), (psx, psy), int(self.exit_portal.radius + pulse), 2)
+            pygame.draw.circle(surf, (255, 120, 255), (psx, psy), int(self.exit_portal.radius * 0.5))
+
+        # Incubation node room elements
+        if self.state == STATE_INCUBATION and self.incubation_node:
+            self.incubation_node.draw(surf, cam_x, cam_y, self.font)
+
+        # Loot Cysts
+        for cyst in self.loot_cysts:
+            if cyst.alive:
+                csx = int(cyst.x - cam_x)
+                csy = int(cyst.y - cam_y)
+                pygame.draw.circle(surf, (220, 180, 50), (csx, csy), int(cyst.radius))
+
+        # Enemies
+        for enemy in self.enemies:
+            enemy.draw(surf, cam_x, cam_y)
+
+        # Projectiles
+        for proj in self.projectiles:
+            proj.draw(surf, cam_x, cam_y)
+
+        # Player
+        if self.player:
+            self.player.draw(surf, cam_x, cam_y)
+
+        # Particles
+        self.particles.draw(surf, cam_x, cam_y)
+
+        # 3. Dynamic Bioluminescence Lighting Pass
+        lights: List[LightSource] = []
+        if self.player:
+            lights.append(LightSource(self.player.center_x, self.player.center_y, radius=48.0, color=COLOR_PLAYER_GLOW, intensity=0.9))
+
+        for proj in self.projectiles:
+            lights.append(LightSource(proj.x, proj.y, radius=proj.radius * 6.0, color=proj.color, intensity=0.7))
+
+        self.lighting.render(surf, cam_x, cam_y, lights, self.grid.grid)
+
+        # 4. In-Game HUD
+        self.hud.draw(surf, self.player, self.current_biome.name, self.current_biome.depth_level)
+
+        # 5. Present to window / Fullscreen display
+        self.renderer.present(self.screen)
+
+    def _draw_tuning(self) -> None:
+        """Render organ-tuning deckbuilder on top of paused world."""
+        # Draw world first
+        self._draw_playing()
+
+        # Overlay tuning editor
+        dest = self.renderer.dest_rect
+        mouse_px, mouse_py = pygame.mouse.get_pos()
+        sim_mx = int(((mouse_px - dest.left) / max(1, dest.width)) * self.renderer.view_w)
+        sim_my = int(((mouse_py - dest.top) / max(1, dest.height)) * self.renderer.view_h)
+
+        self.editor.draw(self.renderer.sim_surface, self.player, (sim_mx, sim_my))
+        self.renderer.present(self.screen)
+
+    def _draw_game_over(self) -> None:
+        """Render Game Over screen."""
+        self._draw_playing()
+        self.game_over_screen.draw(
+            self.renderer.sim_surface,
+            self.is_victory,
+            self.current_biome_index + 1,
+            self.kills_this_run,
+            self.player.biomass_currency if self.player else 0,
+            self.earned_mutagen,
+            self.codex.mutagen_essence,
+        )
+        self.renderer.present(self.screen)
+
+
+def main() -> None:
+    """Entry point for Py-Noita."""
+    game = Game()
+    game.run()
+
+
+if __name__ == "__main__":
+    main()
