@@ -18,6 +18,7 @@ from py_noita.config import (
     PLAYER_MOVE_SPEED,
     PLAYER_WIDTH,
 )
+from py_noita.rendering.ik import ProceduralTentacle
 from py_noita.simulation.grid import SimulationGrid
 from py_noita.simulation.materials import (
     MAT_ACID,
@@ -109,6 +110,14 @@ class Player:
         self.anim_time: float = 0.0
         self.flagella_count: int = 6
 
+        # Procedural Gripping & Crawling Tentacles (FABRIK IK)
+        self.tentacles: List[ProceduralTentacle] = [
+            ProceduralTentacle(rel_root_x=-3.0, rel_root_y=3.0, preferred_angle=math.pi * 0.7, segment_lengths=[4.0, 4.0, 4.0, 3.0]),
+            ProceduralTentacle(rel_root_x=3.0, rel_root_y=3.0, preferred_angle=math.pi * 0.3, segment_lengths=[4.0, 4.0, 4.0, 3.0]),
+            ProceduralTentacle(rel_root_x=-4.0, rel_root_y=-1.0, preferred_angle=math.pi * 1.05, segment_lengths=[5.0, 4.0, 4.0, 3.0]),
+            ProceduralTentacle(rel_root_x=4.0, rel_root_y=-1.0, preferred_angle=-math.pi * 0.05, segment_lengths=[5.0, 4.0, 4.0, 3.0]),
+        ]
+
         # Meta attributes
         self.biomass_currency: int = 0
         self.orbs_collected: int = 0
@@ -184,7 +193,12 @@ class Player:
             # Slower recovery while free-falling
             self.levitation = min(self.max_levitation, self.levitation + PLAYER_LEVITATION_RECHARGE * 0.25)
 
-        # 3. Environment & Liquid interactions
+        # 3. Update Procedural Gripping & Crawling Tentacles (IK)
+        facing = 1.0 if self.vx >= -0.01 else -1.0
+        for tentacle in self.tentacles:
+            tentacle.update(self.center_x, self.center_y, grid, 0.016, self.vx, self.vy, facing)
+
+        # 4. Environment & Liquid interactions
         self._check_environmental_hazards(grid)
 
     def _collides(self, grid: SimulationGrid, test_x: float, test_y: float) -> bool:
@@ -275,14 +289,20 @@ class Player:
         return None
 
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
-        """Draw the living symbiote with animated waving flagella."""
+        """Draw the living symbiote with procedural gripping tentacles and animated flagella."""
         if not self.alive:
             return
 
         sx = int(self.x - cam_x)
         sy = int(self.y - cam_y)
 
-        # 1. Draw waving flagella (cilia hairs behind the body)
+        # 1. Draw procedural gripping / crawling tentacles (FABRIK IK)
+        tentacle_col = (140, 22, 38) if not self.on_fire else (255, 120, 20)
+        sucker_col = (210, 50, 75) if not self.on_fire else (255, 200, 50)
+        for tentacle in self.tentacles:
+            tentacle.draw(surface, cam_x, cam_y, tentacle_col, sucker_col)
+
+        # 2. Draw waving flagella (cilia hairs behind the body)
         for i in range(self.flagella_count):
             fraction = (i + 1) / (self.flagella_count + 1)
             attach_y = sy + int(self.height * fraction)

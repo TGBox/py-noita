@@ -103,7 +103,7 @@
     - Glättung von Pixel-Flüssigkeiten zu zusammenhängenden Flüssigkeitskörpern mit viskosen Menisken.
     - Lichtreflexionen und Glanzlichter auf Blut- und Säure-Oberflächen.
 
-[ ] (B) [ANIMATION] Prozedurale Tentakel- und Gliedmaßen-Inverse-Kinematik (IK).
+[x] (B) [ANIMATION] Prozedurale Tentakel- und Gliedmaßen-Inverse-Kinematik (IK).
     - Spieler-Symbiot erhält dynamische Greif- und Kriech-Tentakeln, die sich physikalisch an Wänden festhalten.
     - Feinde (z.B. Parasiten-Spinnen und T-Zellen) mit physikalisch animierten Beinen/Geißeln.
     - Fresszellen (Makrophagen) verformen sich amöboid organisch durch enge Spalten.

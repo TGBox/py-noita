@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 import pygame
 import numpy as np
 
+from py_noita.rendering.ik import AmoeboidDeformation, ProceduralLeg
 from py_noita.simulation.grid import SimulationGrid
 from py_noita.simulation.materials import (
     MAT_ACID,
@@ -26,6 +27,7 @@ ENEMY_NAMES = {
     "FLESH_WORM": "Fleischwurm",
     "TUMOR_CYST": "Tumorzyste",
     "CHITIN_BEETLE": "Chitin-Käfer",
+    "PARASITE_SPIDER": "Parasiten-Spinne",
     "SPORE_POD": "Sporen-Kapsel",
     "SYNAPTIC_SENTRY": "Synapsen-Wächter",
 }
@@ -118,30 +120,40 @@ class Enemy:
 
 
 class Macrophage(Enemy):
-    """Large amoeboid engulfing cell that crawls along ground and walls."""
+    """Large amoeboid engulfing cell that crawls along ground and walls,
+    squeezing and deforming organicaly through narrow cavern crevices.
+    """
 
     def __init__(self, x: float, y: float):
         super().__init__(x, y, "MACROPHAGE", hp=45.0, width=16, height=14, blood_mat=MAT_PUS, biomass_value=20)
         self.wobble_phase = np.random.uniform(0, math.pi * 2)
+        self.deformation = AmoeboidDeformation(base_radius=7.5, num_vertices=16)
+
+    def update_physics(self, grid: SimulationGrid) -> None:
+        super().update_physics(grid)
+        if self.alive:
+            self.deformation.update(self.center_x, self.center_y, grid, 0.016, self.vx, self.vy)
 
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         if not self.alive:
             return
-        sx = int(self.x - cam_x)
-        sy = int(self.y - cam_y)
 
-        # Pulsating amoeba shape
-        wobble_x = int(math.sin(self.anim_time * 1.5) * 2.0)
-        wobble_y = int(math.cos(self.anim_time * 1.5) * 2.0)
+        # Squeezed amoeboid body contour
+        pts = self.deformation.get_contour_points(self.center_x, self.center_y, cam_x, cam_y)
+        if len(pts) >= 3:
+            pygame.draw.polygon(surface, (190, 185, 110), pts)
+            pygame.draw.polygon(surface, (145, 140, 75), pts, 1)
 
-        rect = pygame.Rect(sx - wobble_x // 2, sy - wobble_y // 2, self.width + wobble_x, self.height + wobble_y)
-        pygame.draw.ellipse(surface, (190, 185, 110), rect)
-        # Inner vacuoles
-        pygame.draw.circle(surface, (150, 140, 75), (sx + self.width // 2, sy + self.height // 2), 4)
+        # Shifting inner vacuoles
+        cx = int(self.center_x - cam_x)
+        cy = int(self.center_y - cam_y)
+        vac_x = int(math.sin(self.anim_time * 1.8) * 2.0)
+        vac_y = int(math.cos(self.anim_time * 1.8) * 2.0)
+        pygame.draw.circle(surface, (150, 140, 75), (cx + vac_x, cy + vac_y), 3)
 
 
 class Antibody(Enemy):
-    """Agile flying hunter that fires cytokine darts."""
+    """Agile flying hunter that fires cytokine darts, propelled by waving flagella."""
 
     def __init__(self, x: float, y: float):
         super().__init__(x, y, "ANTIBODY", hp=22.0, width=10, height=10, blood_mat=MAT_LYMPH, biomass_value=15)
@@ -152,10 +164,15 @@ class Antibody(Enemy):
         sx = int(self.x - cam_x)
         sy = int(self.y - cam_y)
 
-        # Y-shaped antibody structure
         cx = sx + self.width // 2
         cy = sy + self.height // 2
         col = (225, 235, 240)
+
+        # Draw waving trailing flagella / cilia behind Y-protein stem
+        flagella_dx = -self.vx * 2.0
+        for fi in (-2, 0, 2):
+            fw = math.sin(self.anim_time * 3.0 + fi * 1.2) * 2.5
+            pygame.draw.line(surface, (175, 210, 235), (cx + fi, cy + 4), (int(cx + fi + flagella_dx), int(cy + 9 + fw)), 1)
 
         # Draw classic Y protein antibody
         pygame.draw.line(surface, col, (cx, cy + 4), (cx, cy - 1), 2)
@@ -245,13 +262,30 @@ class TumorCyst(Enemy):
 
 
 class ChitinBeetle(Enemy):
-    """Heavily armored scuttler with chitin plates that reduce incoming damage."""
+    """Heavily armored scuttler with chitin plates that reduce incoming damage,
+    crawling with articulated procedural IK legs.
+    """
 
     def __init__(self, x: float, y: float):
         super().__init__(x, y, "CHITIN_BEETLE", hp=70.0, width=16, height=12, blood_mat=MAT_PUS, biomass_value=35)
         self.facing_dir: float = 1.0
         self.is_charging: bool = False
         self.charge_timer: float = 0.0
+        # 4 Articulated procedural legs
+        self.legs: List[ProceduralLeg] = [
+            ProceduralLeg(coxa_offset_x=-5.0, coxa_offset_y=3.0, l1=5.0, l2=6.0, gait_phase=0.0, bend_sign=-1.0),
+            ProceduralLeg(coxa_offset_x=-1.0, coxa_offset_y=4.0, l1=5.0, l2=6.0, gait_phase=0.5, bend_sign=-1.0),
+            ProceduralLeg(coxa_offset_x=3.0, coxa_offset_y=4.0, l1=5.0, l2=6.0, gait_phase=0.0, bend_sign=-1.0),
+            ProceduralLeg(coxa_offset_x=6.0, coxa_offset_y=3.0, l1=5.0, l2=6.0, gait_phase=0.5, bend_sign=-1.0),
+        ]
+
+    def update_physics(self, grid: SimulationGrid) -> None:
+        super().update_physics(grid)
+        if self.alive:
+            if abs(self.vx) > 0.05:
+                self.facing_dir = 1.0 if self.vx > 0 else -1.0
+            for leg in self.legs:
+                leg.update(self.center_x, self.center_y, self.facing_dir, grid, 0.016, self.vx)
 
     def take_damage(self, amount: float, source: str = "DAMAGE") -> None:
         # Chitin exoskeleton absorbs 40% of standard damage
@@ -261,6 +295,12 @@ class ChitinBeetle(Enemy):
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         if not self.alive:
             return
+
+        # 1. Articulated procedural IK legs
+        for leg in self.legs:
+            leg.draw(surface, self.center_x, self.center_y, self.facing_dir, cam_x, cam_y, (65, 52, 75))
+
+        # 2. Chitin carapace
         sx = int(self.x - cam_x)
         sy = int(self.y - cam_y)
 
@@ -273,6 +313,46 @@ class ChitinBeetle(Enemy):
 
         mand_x = sx + self.width + 2 if self.facing_dir > 0 else sx - 2
         pygame.draw.line(surface, (210, 200, 180), (eye_x, sy + 7), (mand_x, sy + 9), 2)
+
+
+class ParasiteSpider(Enemy):
+    """Fast skittering predator with 6 long articulated IK legs that climbs across terrain."""
+
+    def __init__(self, x: float, y: float):
+        super().__init__(x, y, "PARASITE_SPIDER", hp=40.0, width=14, height=12, blood_mat=MAT_BLOOD, biomass_value=30)
+        self.facing_dir: float = 1.0
+        self.legs: List[ProceduralLeg] = [
+            ProceduralLeg(coxa_offset_x=-6.0, coxa_offset_y=1.0, l1=6.0, l2=8.0, gait_phase=0.0, bend_sign=-1.0),
+            ProceduralLeg(coxa_offset_x=-2.0, coxa_offset_y=2.0, l1=7.0, l2=9.0, gait_phase=0.5, bend_sign=-1.0),
+            ProceduralLeg(coxa_offset_x=2.0, coxa_offset_y=2.0, l1=7.0, l2=9.0, gait_phase=0.0, bend_sign=-1.0),
+            ProceduralLeg(coxa_offset_x=6.0, coxa_offset_y=1.0, l1=6.0, l2=8.0, gait_phase=0.5, bend_sign=-1.0),
+        ]
+
+    def update_physics(self, grid: SimulationGrid) -> None:
+        super().update_physics(grid)
+        if self.alive:
+            if abs(self.vx) > 0.05:
+                self.facing_dir = 1.0 if self.vx > 0 else -1.0
+            for leg in self.legs:
+                leg.update(self.center_x, self.center_y, self.facing_dir, grid, 0.016, self.vx)
+
+    def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
+        if not self.alive:
+            return
+
+        # 1. Articulated IK spider legs
+        for leg in self.legs:
+            leg.draw(surface, self.center_x, self.center_y, self.facing_dir, cam_x, cam_y, (120, 25, 45))
+
+        # 2. Spider cephalothorax & abdomen
+        sx = int(self.x - cam_x)
+        sy = int(self.y - cam_y)
+        ab_rect = pygame.Rect(sx, sy, self.width, self.height)
+        pygame.draw.ellipse(surface, (80, 15, 28), ab_rect)
+
+        eye_x = sx + self.width - 3 if self.facing_dir > 0 else sx + 3
+        pygame.draw.circle(surface, (255, 30, 40), (eye_x, sy + 3), 2)
+        pygame.draw.circle(surface, (255, 80, 90), (eye_x - (1 if self.facing_dir > 0 else -1), sy + 5), 1)
 
 
 class SporePod(Enemy):
@@ -336,6 +416,8 @@ def create_enemy(etype: str, x: float, y: float) -> Enemy:
         return TumorCyst(x, y)
     elif etype == "CHITIN_BEETLE":
         return ChitinBeetle(x, y)
+    elif etype == "PARASITE_SPIDER":
+        return ParasiteSpider(x, y)
     elif etype == "SPORE_POD":
         return SporePod(x, y)
     elif etype == "SYNAPTIC_SENTRY":
