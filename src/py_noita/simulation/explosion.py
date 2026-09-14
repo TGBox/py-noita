@@ -1,7 +1,7 @@
 """Explosion algorithms, shockwaves, cratering, and debris scattering."""
 
 import math
-from typing import List, Tuple
+from typing import Any, List, Optional, Tuple
 import numpy as np
 
 from py_noita.simulation.materials import (
@@ -61,11 +61,16 @@ def create_explosion(
     radius: int = 14,
     power: float = 40.0,
     spawn_fire: bool = True,
+    physics_world: Optional[Any] = None,
 ) -> Tuple[int, List[ExplosionDebris]]:
     """Create a visceral explosion at (cx, cy).
     Carves out a crater in solid tissue/bone, flings bone chips & ash debris,
     spawns fire/smoke, and returns (damaged_cells_count, list_of_debris).
     """
+    pw = physics_world if physics_world is not None else getattr(grid, "physics_world", None)
+    if pw is not None:
+        pw.apply_explosion(float(cx), float(cy), float(radius), float(power))
+
     damaged_cells = 0
     debris_list: List[ExplosionDebris] = []
     r_sq = radius * radius

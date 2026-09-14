@@ -1,7 +1,7 @@
 """Simulation Grid Manager for Py-Noita."""
 
 import math
-from typing import Optional, Set, Tuple
+from typing import Any, Optional, Set, Tuple
 import numpy as np
 
 from py_noita.config import CHUNK_SIZE, WORLD_HEIGHT, WORLD_WIDTH
@@ -45,6 +45,7 @@ class SimulationGrid:
 
         self.frame_count: int = 0
         self.total_moved: int = 0
+        self.physics_world: Optional[Any] = None
 
         # Border walls (unbreakable bone boundaries)
         self.init_boundaries()

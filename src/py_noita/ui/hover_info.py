@@ -32,13 +32,15 @@ def get_hover_target(
     world_x: float,
     world_y: float,
     loot_cysts: Optional[Sequence[Any]] = None,
+    rigid_bodies: Optional[Sequence[Any]] = None,
 ) -> Optional[HoverTarget]:
     """Inspect world coordinates and return the hovered entity, object, or material.
 
     Priority order:
     1. Living enemies (closest if overlapping)
-    2. Loot cysts / interactive environmental objects
-    3. Pixel material from the physics simulation grid (if not air)
+    2. Physical rigid bodies / props
+    3. Loot cysts / interactive environmental objects
+    4. Pixel material from the physics simulation grid (if not air)
     """
     # 1. Check living enemies
     candidate_enemies = []
@@ -73,7 +75,20 @@ def get_hover_target(
             max_hp=best_enemy.max_hp,
         )
 
-    # 2. Check loot cysts
+    # 2. Check physical rigid bodies
+    if rigid_bodies:
+        for rb in rigid_bodies:
+            if getattr(rb, "alive", False) and rb.contains_point(world_x, world_y):
+                return HoverTarget(
+                    target_type="OBJECT",
+                    name=getattr(rb, "name", "Objekt"),
+                    category="Objekt",
+                    color=getattr(rb, "color", (190, 180, 165)),
+                    current_hp=getattr(rb, "health", None) if getattr(rb, "destructible", False) else None,
+                    max_hp=getattr(rb, "max_health", None) if getattr(rb, "destructible", False) else None,
+                )
+
+    # 3. Check loot cysts
     if loot_cysts:
         for cyst in loot_cysts:
             if getattr(cyst, "alive", False):
@@ -88,7 +103,7 @@ def get_hover_target(
                         color=(230, 200, 60),
                     )
 
-    # 3. Check simulation grid pixel
+    # 4. Check simulation grid pixel
     ix = int(math.floor(world_x))
     iy = int(math.floor(world_y))
 

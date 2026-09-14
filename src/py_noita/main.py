@@ -30,6 +30,7 @@ from py_noita.entities.player import Player
 from py_noita.input.input_handler import InputHandler
 from py_noita.perks.perk_definitions import ALL_PERKS
 from py_noita.perks.perk_manager import PerkManager
+from py_noita.physics.physics_world import PhysicsWorld
 from py_noita.rendering.camera import Camera
 from py_noita.rendering.lighting import LightSource, LightingEngine
 from py_noita.rendering.particles import ParticleSystem
@@ -97,8 +98,10 @@ class Game:
         self.font = pygame.font.SysFont("Arial", 12)
         self.title_font = pygame.font.SysFont("Arial", 22, bold=True)
 
-        # Simulation World
+        # Simulation World & 2D Rigid-Body Physics
         self.grid = SimulationGrid(WORLD_WIDTH, WORLD_HEIGHT)
+        self.physics_world = PhysicsWorld(self.grid)
+        self.grid.physics_world = self.physics_world
 
         # Gameplay Entities & State
         self.state = STATE_MENU
@@ -238,6 +241,8 @@ class Game:
 
         self.projectiles.clear()
         self.particles.particles.clear()
+        self.physics_world = PhysicsWorld(self.grid)
+        self.grid.physics_world = self.physics_world
         self.audio.play("squelch", volume=0.7)
 
     def enter_incubation_node(self) -> None:
@@ -445,6 +450,9 @@ class Game:
         # 5. Update Explosion Debris
         self.explosion_debris = [d for d in self.explosion_debris if d.update(self.grid)]
 
+        # 5b. Update 2D Rigid-Body Physics
+        self.physics_world.update(dt, cam_x, cam_y, self.renderer.view_w, self.renderer.view_h)
+
         # 6. Update Enemies & AI
         spawned_hostile_projs: List[Projectile] = []
         spawned_minions: List[Enemy] = []
@@ -554,6 +562,7 @@ class Game:
                 self.state = STATE_PLAYING
 
         self.camera.update(self.player.center_x, self.player.center_y)
+        self.physics_world.update(dt, cam_x, cam_y, self.renderer.view_w, self.renderer.view_h)
         self.particles.update(self.grid)
         self.audio.update(dt)
 
@@ -622,6 +631,9 @@ class Game:
         for proj in self.projectiles:
             proj.draw(surf, cam_x, cam_y)
 
+        # Rigid Bodies / Props
+        self.physics_world.draw(surf, cam_x, cam_y)
+
         # Player
         if self.player:
             self.player.draw(surf, cam_x, cam_y)
@@ -650,6 +662,7 @@ class Game:
                 self.last_input.aim_world_x,
                 self.last_input.aim_world_y,
                 self.loot_cysts,
+                rigid_bodies=self.physics_world.bodies,
             )
 
         self.hud.draw(

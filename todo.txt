@@ -11,7 +11,7 @@
 # ------------------------------------------------------------------------------
 # MEILENSTEIN 1: 2D RIGID-BODY PHYSIK & ZERSTÖRBARE OBJEKTE (PROPS & CHAINS)
 # ------------------------------------------------------------------------------
-[ ] (A) [ENGINE] Physik-Engine-Kopplung (Pymunk / Box2D) mit dem Numba-Pixelgitter implementieren.
+[x] (A) [ENGINE] Physik-Engine-Kopplung (Pymunk / Box2D) mit dem Numba-Pixelgitter implementieren.
     - Rigid-Bodies verdrängen und zermalmen lose Pixel (Sand, Fleisch, Flüssigkeiten).
     - Pixel-Explosionen üben physikalische Impulse und Drehmomente auf starre Körper aus.
     - Kollisionsmasken zwischen Pixel-Gitter und konvexen Polygonen optimieren.
