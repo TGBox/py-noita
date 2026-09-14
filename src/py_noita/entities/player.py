@@ -138,17 +138,17 @@ class Player:
         else:
             self.is_levitating = False
 
-    def update_physics(self, grid: SimulationGrid) -> None:
+    def update_physics(self, grid: SimulationGrid, gravity_multiplier: float = 1.0) -> None:
         """Update symbiote motion, collisions with terrain, and fluid contacts."""
         if not self.alive:
             return
 
         self.anim_time += 0.15
 
-        # Gravity
-        self.vy += GRAVITY
+        # Gravity scaled by biome conditions (e.g. low-gravity in infected lung)
+        self.vy += GRAVITY * gravity_multiplier
         # Terminal downward speed
-        self.vy = min(self.vy, 5.0)
+        self.vy = min(self.vy, 5.0 * gravity_multiplier)
 
         # 1. Horizontal movement & collision
         steps_x = int(math.ceil(abs(self.vx)))

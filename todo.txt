@@ -38,7 +38,7 @@
     - Chunks im Hintergrund von Disk laden/speichern, um RAM-Verbrauch unter 500 MB zu halten.
     - Determinierte Weltgenerierung über Welt-Seed (Seeds im Hauptmenü eingebbar).
 
-[ ] (A) [WORLD] Ausbau auf 8 vollwertige Organ-Biome (Haupt- und Nebenpfade).
+[x] (A) [WORLD] Ausbau auf 8 vollwertige Organ-Biome (Haupt- und Nebenpfade).
     - Biom 1: Epidermis & Cutis (Hautoberfläche, Keratin, Lymphbecken).
     - Biom 2: Vaskulärer Muskel (Blutgefäße, Muskelstränge, Makrophagen-Nester).
     - Biom 3: Magensäure-Kavernen (Gewaltige Verdauungsseen, Biogas-Gasaustritte).

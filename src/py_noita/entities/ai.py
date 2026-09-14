@@ -7,14 +7,22 @@ import numpy as np
 
 from py_noita.entities.enemy import (
     Antibody,
+    ChitinBeetle,
     Enemy,
     FleshWorm,
     Granulocyte,
     Macrophage,
+    SporePod,
+    SynapticSentry,
     TumorCyst,
 )
 from py_noita.simulation.grid import SimulationGrid
-from py_noita.simulation.materials import MAT_ACID, MAT_AIR
+from py_noita.simulation.materials import (
+    MAT_ACID,
+    MAT_AIR,
+    MAT_SPORES,
+    MAT_TOXIC_VAPOR,
+)
 from py_noita.weapons.projectile import Projectile
 
 
@@ -171,5 +179,117 @@ def update_enemy_ai(
             # Spawn mini antibody
             minion = Antibody(enemy.center_x + random.randint(-15, 15), enemy.center_y - 12)
             spawned_minions.append(minion)
+
+    # 6. CHITIN BEETLE: Armored charging scuttler
+    elif isinstance(enemy, ChitinBeetle):
+        enemy.attack_cooldown -= dt
+        if dist < 260:
+            move_dir = 1.0 if dx > 0 else -1.0
+            enemy.facing_dir = move_dir
+            if not enemy.is_charging:
+                if dist < 120 and abs(dy) < 35 and enemy.attack_cooldown <= 0.0:
+                    enemy.is_charging = True
+                    enemy.charge_timer = 0.85
+                    enemy.attack_cooldown = 2.4
+                else:
+                    enemy.vx += (move_dir * 1.6 - enemy.vx) * 0.2
+            else:
+                enemy.charge_timer -= dt
+                enemy.vx += (enemy.facing_dir * 3.8 - enemy.vx) * 0.4
+                if enemy.charge_timer <= 0.0:
+                    enemy.is_charging = False
+
+            ahead_x = int(enemy.center_x + enemy.facing_dir * 12)
+            ahead_y = int(enemy.center_y)
+            if grid.is_solid(ahead_x, ahead_y):
+                enemy.vy = -2.6
+
+        enemy.vy += 0.26
+        enemy.vy = min(enemy.vy, 4.5)
+        nx = enemy.x + enemy.vx
+        ny = enemy.y + enemy.vy
+        if not grid.is_solid(int(nx + enemy.width // 2), int(ny + enemy.height)):
+            enemy.x = nx
+            enemy.y = ny
+        else:
+            enemy.y = ny - 1
+            enemy.vy = 0.0
+            enemy.x = nx
+
+        if dist < (enemy.width + player.width) / 2.0 + 3.0:
+            dmg = 1.2 if enemy.is_charging else 0.4
+            player.take_damage(dmg, "BEETLE_RAM")
+
+    # 7. SPORE POD: Floating low-gravity spore mine
+    elif isinstance(enemy, SporePod):
+        enemy.float_phase += 0.04
+        enemy.vx += (math.cos(enemy.float_phase) * 0.6 - enemy.vx) * 0.08
+        enemy.vy += (math.sin(enemy.float_phase * 1.3) * 0.6 - enemy.vy) * 0.08
+        enemy.x += enemy.vx
+        enemy.y += enemy.vy
+
+        if dist < 220:
+            enemy.attack_cooldown -= dt
+            if enemy.attack_cooldown <= 0.0:
+                enemy.attack_cooldown = random.uniform(2.5, 4.0)
+                # Scatter spores and toxic vapor into surrounding air
+                for _ in range(8):
+                    sx = int(enemy.center_x + random.randint(-12, 12))
+                    sy = int(enemy.center_y + random.randint(-12, 12))
+                    if 1 <= sx < grid.width - 1 and 1 <= sy < grid.height - 1 and grid.is_empty(sx, sy):
+                        grid.set_pixel(sx, sy, random.choice([MAT_SPORES, MAT_TOXIC_VAPOR]))
+
+                # Fire seeking spore darts
+                for angle_offset in (-0.25, 0.25):
+                    angle = math.atan2(dy, dx) + angle_offset
+                    spore_proj = Projectile(
+                        x=enemy.center_x,
+                        y=enemy.center_y,
+                        vx=math.cos(angle) * 3.2,
+                        vy=math.sin(angle) * 3.2,
+                        damage=8.0,
+                        lifetime=90,
+                        radius=2.5,
+                        color=(180, 220, 50),
+                        owner="ENEMY",
+                    )
+                    spawned_projectiles.append(spore_proj)
+
+    # 8. SYNAPTIC SENTRY: Bio-electric neuro-guardian
+    elif isinstance(enemy, SynapticSentry):
+        desired_dist = 130.0
+        target_x = player.center_x - (dx / max(1.0, dist)) * desired_dist
+        target_y = player.center_y - (dy / max(1.0, dist)) * desired_dist
+
+        enemy.vx += ((target_x - enemy.center_x) * 0.07 - enemy.vx) * 0.2
+        enemy.vy += ((target_y - enemy.center_y) * 0.07 - enemy.vy) * 0.2
+        enemy.x += enemy.vx
+        enemy.y += enemy.vy
+
+        # Teleport blink if player gets too close
+        enemy.teleport_cooldown -= dt
+        if enemy.teleport_cooldown <= 0.0 and dist < 100:
+            blink_angle = random.uniform(0, 2 * math.pi)
+            enemy.x += math.cos(blink_angle) * 45.0
+            enemy.y += math.sin(blink_angle) * 45.0
+            enemy.teleport_cooldown = random.uniform(3.0, 5.0)
+
+        # High-speed synapse spark attack
+        enemy.attack_cooldown -= dt
+        if enemy.attack_cooldown <= 0.0 and dist < 240:
+            enemy.attack_cooldown = random.uniform(1.2, 2.0)
+            angle = math.atan2(dy, dx)
+            spark = Projectile(
+                x=enemy.center_x,
+                y=enemy.center_y,
+                vx=math.cos(angle) * 6.5,
+                vy=math.sin(angle) * 6.5,
+                damage=12.0,
+                lifetime=60,
+                radius=2.0,
+                color=(50, 220, 255),
+                owner="ENEMY",
+            )
+            spawned_projectiles.append(spark)
 
     return spawned_projectiles, spawned_minions

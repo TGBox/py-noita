@@ -76,21 +76,34 @@ class ShopItem:
 class IncubationNode:
     """Manages the sanctuary chamber between biomes."""
 
-    def __init__(self, start_x: int, start_y: int, width: int = 380, height: int = 140):
+    def __init__(
+        self,
+        start_x: int,
+        start_y: int,
+        width: int = 380,
+        height: int = 140,
+        has_side_path: bool = False,
+        side_biome_id: Optional[str] = None,
+        side_biome_name: str = "Gallen-Lagune",
+    ):
         self.x = start_x
         self.y = start_y
         self.width = width
         self.height = height
+        self.has_side_path = has_side_path
+        self.side_biome_id = side_biome_id
+        self.side_biome_name = side_biome_name
 
         self.pedestals: List[PerkPedestal] = []
         self.shop_items: List[ShopItem] = []
         self.healed_player: bool = False
         self.tuning_active: bool = False
 
-        # Altar positions
+        # Altar & portal positions
         self.heal_pool_pos = (start_x + 50, start_y + height - 25)
         self.tuning_altar_pos = (start_x + 130, start_y + height - 25)
         self.exit_shaft_pos = (start_x + width - 40, start_y + height - 10)
+        self.side_portal_pos = (start_x + 30, start_y + 40)
 
     def generate_structure(self, grid: SimulationGrid) -> None:
         """Carve the holy mountain chamber out of indestructible bone."""
@@ -120,6 +133,12 @@ class IncubationNode:
         # 4. Create Exit Shaft on right
         ex, ey = self.exit_shaft_pos
         grid.fill_rect(ex - 15, ey - 4, 30, 30, MAT_AIR)
+
+        # 4b. If side branch enabled, carve upper-left access niche
+        if self.has_side_path:
+            sx, sy = self.side_portal_pos
+            grid.fill_rect(sx - 16, sy - 16, 32, 32, MAT_AIR)
+            grid.fill_rect(sx - 20, sy + 18, 40, 6, MAT_BONE)
 
         # 5. Populate 3 Perks
         self.pedestals.clear()
@@ -216,3 +235,25 @@ class IncubationNode:
         if -50 <= sx <= surface.get_width() + 50:
             heal_label = font.render("+ MITOSE-POOL +", True, (150, 255, 180))
             surface.blit(heal_label, (sx - heal_label.get_width() // 2, sy - 20))
+
+        # Side path portal
+        if self.has_side_path:
+            spx, spy = self.side_portal_pos
+            ssx = int(spx - cam_x)
+            ssy = int(spy - cam_y)
+            if -50 <= ssx <= surface.get_width() + 50:
+                import math
+                pulse = math.sin(pygame.time.get_ticks() * 0.006) * 2.5
+                pygame.draw.circle(surface, (180, 210, 30), (ssx, ssy), int(14 + pulse), 2)
+                pygame.draw.circle(surface, (140, 180, 20), (ssx, ssy), 7)
+                side_label = font.render(f"[SEITENPFAD: {self.side_biome_name.upper()}]", True, (210, 240, 90))
+                surface.blit(side_label, (ssx - side_label.get_width() // 2, ssy - 22))
+
+    def is_player_in_side_portal(self, player) -> bool:
+        """Check if player is stepping through the side path portal."""
+        if not self.has_side_path:
+            return False
+        spx, spy = self.side_portal_pos
+        import math
+        return math.hypot(player.center_x - spx, player.center_y - spy) < 18.0
+

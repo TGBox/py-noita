@@ -13,6 +13,7 @@ from py_noita.simulation.materials import (
     MAT_LYMPH,
     MAT_MUTAGEN,
     MAT_PUS,
+    MAT_SPORES,
     MAT_TISSUE,
 )
 from py_noita.weapons.projectile import Projectile
@@ -24,6 +25,9 @@ ENEMY_NAMES = {
     "GRANULOCYTE": "Granulozyt",
     "FLESH_WORM": "Fleischwurm",
     "TUMOR_CYST": "Tumorzyste",
+    "CHITIN_BEETLE": "Chitin-Käfer",
+    "SPORE_POD": "Sporen-Kapsel",
+    "SYNAPTIC_SENTRY": "Synapsen-Wächter",
 }
 
 
@@ -240,6 +244,84 @@ class TumorCyst(Enemy):
         pygame.draw.circle(surface, (210, 40, 240), (sx + self.width // 2, sy + self.height // 2), 6)
 
 
+class ChitinBeetle(Enemy):
+    """Heavily armored scuttler with chitin plates that reduce incoming damage."""
+
+    def __init__(self, x: float, y: float):
+        super().__init__(x, y, "CHITIN_BEETLE", hp=70.0, width=16, height=12, blood_mat=MAT_PUS, biomass_value=35)
+        self.facing_dir: float = 1.0
+        self.is_charging: bool = False
+        self.charge_timer: float = 0.0
+
+    def take_damage(self, amount: float, source: str = "DAMAGE") -> None:
+        # Chitin exoskeleton absorbs 40% of standard damage
+        reduced = amount * 0.6
+        super().take_damage(reduced, source)
+
+    def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
+        if not self.alive:
+            return
+        sx = int(self.x - cam_x)
+        sy = int(self.y - cam_y)
+
+        rect = pygame.Rect(sx, sy, self.width, self.height)
+        pygame.draw.ellipse(surface, (55, 45, 65), rect)
+        pygame.draw.ellipse(surface, (85, 70, 100), rect, 1)
+
+        eye_x = sx + self.width - 3 if self.facing_dir > 0 else sx + 3
+        pygame.draw.circle(surface, (255, 180, 40), (eye_x, sy + 4), 2)
+
+        mand_x = sx + self.width + 2 if self.facing_dir > 0 else sx - 2
+        pygame.draw.line(surface, (210, 200, 180), (eye_x, sy + 7), (mand_x, sy + 9), 2)
+
+
+class SporePod(Enemy):
+    """Floating organic spore sac drifting in low-gravity chambers."""
+
+    def __init__(self, x: float, y: float):
+        super().__init__(x, y, "SPORE_POD", hp=35.0, width=14, height=14, blood_mat=MAT_SPORES, biomass_value=25)
+        self.float_phase: float = np.random.uniform(0, math.pi * 2)
+
+    def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
+        if not self.alive:
+            return
+        sx = int(self.x - cam_x)
+        sy = int(self.y - cam_y)
+
+        pulse = math.sin(self.anim_time * 2.5) * 1.5
+        rect = pygame.Rect(sx - int(pulse // 2), sy - int(pulse // 2), int(self.width + pulse), int(self.height + pulse))
+        pygame.draw.ellipse(surface, (150, 180, 40), rect)
+        pygame.draw.circle(surface, (210, 230, 60), (sx + self.width // 2, sy + 4), 2)
+        pygame.draw.circle(surface, (110, 140, 25), (sx + 4, sy + self.height - 4), 2)
+        pygame.draw.circle(surface, (110, 140, 25), (sx + self.width - 4, sy + self.height - 4), 2)
+
+
+class SynapticSentry(Enemy):
+    """Hovering neural guardian emitting bio-electric synapse discharges."""
+
+    def __init__(self, x: float, y: float):
+        super().__init__(x, y, "SYNAPTIC_SENTRY", hp=55.0, width=14, height=14, blood_mat=MAT_MUTAGEN, biomass_value=50)
+        self.teleport_cooldown: float = np.random.uniform(3.0, 5.0)
+
+    def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
+        if not self.alive:
+            return
+        sx = int(self.x - cam_x)
+        sy = int(self.y - cam_y)
+
+        cx = sx + self.width // 2
+        cy = sy + self.height // 2
+        glow_rad = int(7 + math.sin(self.anim_time * 4.0) * 2)
+        pygame.draw.circle(surface, (30, 160, 220), (cx, cy), glow_rad, 1)
+        pygame.draw.circle(surface, (60, 220, 255), (cx, cy), 5)
+        pygame.draw.circle(surface, (220, 250, 255), (cx, cy), 2)
+
+        for angle_offset in (0.0, 1.57, 3.14, 4.71):
+            ax = cx + int(math.cos(self.anim_time + angle_offset) * 8)
+            ay = cy + int(math.sin(self.anim_time + angle_offset) * 8)
+            pygame.draw.line(surface, (100, 240, 255), (cx, cy), (ax, ay), 1)
+
+
 def create_enemy(etype: str, x: float, y: float) -> Enemy:
     """Factory method to instantiate enemies."""
     if etype == "MACROPHAGE":
@@ -252,4 +334,10 @@ def create_enemy(etype: str, x: float, y: float) -> Enemy:
         return FleshWorm(x, y)
     elif etype == "TUMOR_CYST":
         return TumorCyst(x, y)
+    elif etype == "CHITIN_BEETLE":
+        return ChitinBeetle(x, y)
+    elif etype == "SPORE_POD":
+        return SporePod(x, y)
+    elif etype == "SYNAPTIC_SENTRY":
+        return SynapticSentry(x, y)
     return Macrophage(x, y)

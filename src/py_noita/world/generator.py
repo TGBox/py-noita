@@ -85,28 +85,60 @@ def generate_world_level(
     grid.fill_rect(w // 2 - 80, 110, 160, 10, biome.secondary_solid)
 
     # 3. Procedural Cave Carving: Multi-agent random burrowers & cellular automata
-    num_burrowers = max(4, w // 80)
-    burrow_steps = max(300, int(w * h / 400))
+    style = getattr(biome, "generation_style", "DEFAULT")
+    if style == "LAGOON":
+        num_burrowers = max(5, w // 60)
+        burrow_steps = max(350, int(w * h / 360))
+        dx_choices = [-4, -3, -2, -1, 0, 1, 2, 3, 4]
+        dy_choices = [-1, 0, 1, 2]
+    elif style == "LUNG":
+        num_burrowers = max(4, w // 70)
+        burrow_steps = max(300, int(w * h / 400))
+        dx_choices = [-2, -1, 0, 1, 2]
+        dy_choices = [-2, 0, 1, 3, 5]
+    elif style == "LABYRINTH":
+        num_burrowers = max(6, w // 50)
+        burrow_steps = max(400, int(w * h / 350))
+        dx_choices = [-3, -2, -1, 1, 2, 3]
+        dy_choices = [-2, -1, 1, 2]
+    else:
+        num_burrowers = max(4, w // 80)
+        burrow_steps = max(300, int(w * h / 400))
+        dx_choices = [-3, -2, -1, 0, 1, 2, 3]
+        dy_choices = [-1, 0, 1, 2, 3, 4]
+
     for b in range(num_burrowers):
         bx = random.randint(w // 4, 3 * w // 4)
         by = random.randint(max(40, int(h * 0.1)), max(50, int(h * 0.2)))
-        radius = random.randint(8, 20)
+        radius = random.randint(6, 14) if style == "LABYRINTH" else random.randint(8, 20)
 
         for _ in range(burrow_steps):
             grid.carve_circle(int(bx), int(by), radius, MAT_AIR)
-            # Biased to drift downwards towards bottom
-            bx += random.choice([-3, -2, -1, 0, 1, 2, 3])
-            by += random.choice([-1, 0, 1, 2, 3, 4])
+            bx += random.choice(dx_choices)
+            by += random.choice(dy_choices)
 
             # Keep inside world bounds
             bx = max(20, min(w - 20, bx))
             by = max(40, min(h - 80, by))
 
             if random.random() < 0.05:
-                radius = random.randint(8, 22)
+                radius = random.randint(6, 12) if style == "LABYRINTH" else random.randint(8, 22)
+
+    # 3b. Biome-specific architectural features
+    if style == "CORE":
+        # Grand central host brain chamber
+        grid.carve_circle(w // 2, h // 2, 45, MAT_AIR)
+        grid.fill_rect(w // 2 - 35, h // 2 + 35, 70, 8, biome.secondary_solid)
+    elif style == "SPINE":
+        # Central spinal column strut
+        grid.fill_rect(w // 2 - 8, int(h * 0.18), 16, int(h * 0.65), biome.secondary_solid)
+        for sy in range(int(h * 0.22), int(h * 0.8), 35):
+            grid.fill_rect(30, sy, w - 60, 4, biome.primary_solid)
 
     # 4. Bone strut reinforcements throughout caverns
     num_struts = max(5, int(h / 50))
+    if style == "LABYRINTH":
+        num_struts *= 2
     for _ in range(num_struts):
         rx = random.randint(20, max(25, w - 60))
         ry = random.randint(int(h * 0.15), max(int(h * 0.16), h - 100))
@@ -116,6 +148,8 @@ def generate_world_level(
 
     # 5. Natural Liquid Basins & Pools
     num_pools = max(3, int(h / 80))
+    if style == "LAGOON":
+        num_pools += 3
     pool_min_y = int(h * 0.2)
     pool_max_y = max(pool_min_y + 10, h - 80)
     for _ in range(num_pools):
@@ -125,19 +159,23 @@ def generate_world_level(
         for search_y in range(py, min(h - 60, py + 60)):
             if grid.is_solid(px, search_y):
                 # Carve basin and fill with liquid
-                grid.carve_circle(px, search_y - 2, random.randint(8, 18), MAT_AIR)
-                grid.fill_rect(px - 10, search_y - 6, 20, 10, biome.liquid_pool_mat)
+                pool_r = random.randint(12, 24) if style == "LAGOON" else random.randint(8, 18)
+                grid.carve_circle(px, search_y - 2, pool_r, MAT_AIR)
+                basin_w = 30 if style == "LAGOON" else 20
+                grid.fill_rect(px - basin_w // 2, search_y - 6, basin_w, 10, biome.liquid_pool_mat)
                 break
 
     # 6. Gas and Powder pockets
     if biome.gas_mat != MAT_AIR:
-        for _ in range(max(2, int(h / 120))):
+        gas_count = max(4, int(h / 80)) if style in ("LAGOON", "LUNG") else max(2, int(h / 120))
+        for _ in range(gas_count):
             gx = random.randint(30, max(35, w - 50))
             gy = random.randint(int(h * 0.25), max(int(h * 0.26), h - 90))
             grid.fill_rect(gx, gy, random.randint(12, 28), random.randint(6, 14), biome.gas_mat)
 
     if biome.powder_mat != MAT_AIR:
-        for _ in range(max(3, int(h / 90))):
+        powder_count = max(5, int(h / 60)) if style in ("LUNG", "LABYRINTH") else max(3, int(h / 90))
+        for _ in range(powder_count):
             sx = random.randint(30, max(35, w - 50))
             sy = random.randint(int(h * 0.2), max(int(h * 0.21), h - 90))
             grid.spray_circle(sx, sy, random.randint(6, 14), biome.powder_mat, density=0.8)
@@ -167,9 +205,12 @@ def generate_world_level(
 
     # 9. Loot Cysts
     loot_cysts: List[LootCyst] = []
-    for _ in range(max(2, int(h / 100))):
-        cx = random.randint(40, max(45, w - 50))
-        cy = random.randint(int(h * 0.2), max(int(h * 0.21), h - 80))
+    target_cysts = max(2, int(h / 100))
+    cyst_attempts = 0
+    while len(loot_cysts) < target_cysts and cyst_attempts < 100:
+        cyst_attempts += 1
+        cx = random.randint(30, max(35, w - 40))
+        cy = random.randint(int(h * 0.15), max(int(h * 0.16), h - 80))
         if grid.is_empty(cx, cy):
             reward = "GENE" if random.random() < 0.4 else "BIOMASS"
             loot_cysts.append(LootCyst(float(cx), float(cy), reward))
@@ -206,15 +247,37 @@ def spawn_biome_props(physics_world, grid: SimulationGrid, biome: Biome, count: 
         ry = random.randint(min_y, max_y)
 
         if grid.is_empty(rx, ry) and (grid.is_solid(rx, ry + 4) or grid.is_solid(rx, ry + 6)):
+            style = getattr(biome, "generation_style", "DEFAULT")
             prop_choice = random.random()
-            if prop_choice < 0.35:
-                prop = AcidGallbladder(physics_world.space, float(rx), float(ry))
-            elif prop_choice < 0.65:
-                prop = BiogasCyst(physics_world.space, float(rx), float(ry))
-            elif prop_choice < 0.85:
-                prop = BoneMinecart(physics_world.space, float(rx), float(ry))
+            if style == "LAGOON":
+                # More chitin shields and acid bladders in lagoon
+                if prop_choice < 0.40:
+                    prop = AcidGallbladder(physics_world.space, float(rx), float(ry))
+                elif prop_choice < 0.55:
+                    prop = BiogasCyst(physics_world.space, float(rx), float(ry))
+                elif prop_choice < 0.65:
+                    prop = BoneMinecart(physics_world.space, float(rx), float(ry))
+                else:
+                    prop = ChitinShield(physics_world.space, float(rx), float(ry))
+            elif style == "LABYRINTH":
+                # More bone minecarts in catacombs
+                if prop_choice < 0.20:
+                    prop = AcidGallbladder(physics_world.space, float(rx), float(ry))
+                elif prop_choice < 0.40:
+                    prop = BiogasCyst(physics_world.space, float(rx), float(ry))
+                elif prop_choice < 0.85:
+                    prop = BoneMinecart(physics_world.space, float(rx), float(ry))
+                else:
+                    prop = ChitinShield(physics_world.space, float(rx), float(ry))
             else:
-                prop = ChitinShield(physics_world.space, float(rx), float(ry))
+                if prop_choice < 0.35:
+                    prop = AcidGallbladder(physics_world.space, float(rx), float(ry))
+                elif prop_choice < 0.65:
+                    prop = BiogasCyst(physics_world.space, float(rx), float(ry))
+                elif prop_choice < 0.85:
+                    prop = BoneMinecart(physics_world.space, float(rx), float(ry))
+                else:
+                    prop = ChitinShield(physics_world.space, float(rx), float(ry))
 
             physics_world.add_body(prop)
             spawned += 1

@@ -266,7 +266,23 @@ class Game:
         start_x = (WORLD_WIDTH - room_w) // 2
         start_y = 120
 
-        self.incubation_node = IncubationNode(start_x, start_y, room_w, room_h)
+        has_side_path = False
+        side_biome_id = None
+        side_biome_name = ""
+        if self.current_biome.biome_id == "GASTRIC":
+            has_side_path = True
+            side_biome_id = "BILE_LAGOON"
+            side_biome_name = "Gallen-Lagune"
+
+        self.incubation_node = IncubationNode(
+            start_x,
+            start_y,
+            room_w,
+            room_h,
+            has_side_path=has_side_path,
+            side_biome_id=side_biome_id,
+            side_biome_name=side_biome_name,
+        )
         self.incubation_node.generate_structure(self.grid)
 
         # Teleport player into sanctuary
@@ -478,7 +494,7 @@ class Game:
 
         # 3. Update Physics & Fallingsand Simulation
         self.grid.update(cam_x, cam_y, self.renderer.view_w, self.renderer.view_h)
-        self.player.update_physics(self.grid)
+        self.player.update_physics(self.grid, gravity_multiplier=self.current_biome.gravity_multiplier)
         self.perk_manager.update(dt, self.player, self.grid)
 
         # 4. Update Projectiles
@@ -602,10 +618,30 @@ class Game:
             self.audio.play("pickup", volume=1.0)
             self.particles.spawn_spore_puff(self.player.center_x, self.player.center_y, count=25)
 
+        # Check side portal transition (e.g. into Bile Lagoon)
+        if self.incubation_node and self.incubation_node.is_player_in_side_portal(self.player):
+            for i, b in enumerate(ALL_BIOMES):
+                if b.biome_id == self.incubation_node.side_biome_id:
+                    self.load_biome_level(i)
+                    self.state = STATE_PLAYING
+                    return
+
         # Exit shaft drop (advance to next biome level)
         ex, ey = self.incubation_node.exit_shaft_pos
         if abs(self.player.center_x - ex) < 20 and self.player.y > ey:
+            # If leaving side biome (BILE_LAGOON), rejoin main path at INFECTED_LUNG
+            if self.current_biome.is_side_path:
+                for i, b in enumerate(ALL_BIOMES):
+                    if b.biome_id == "INFECTED_LUNG":
+                        self.load_biome_level(i)
+                        self.state = STATE_PLAYING
+                        return
+
             next_idx = self.current_biome_index + 1
+            # If next_idx is side path (BILE_LAGOON), skip over to INFECTED_LUNG on main path
+            if next_idx < len(ALL_BIOMES) and ALL_BIOMES[next_idx].is_side_path:
+                next_idx += 1
+
             if next_idx >= len(ALL_BIOMES):
                 # Victory!
                 self.is_victory = True
