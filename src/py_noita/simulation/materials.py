@@ -13,6 +13,14 @@ STATE_LIQUID = 3
 STATE_GAS = 4
 STATE_ENERGY = 5
 
+# Decal / Stain Types for permanent wall scarring & staining
+STAIN_NONE = 0
+STAIN_BLOOD = 1
+STAIN_SLIME = 2
+STAIN_MUTAGEN = 3
+STAIN_ACID = 4
+STAIN_CHAR = 5
+
 # Material IDs (uint8)
 MAT_AIR = 0
 MAT_TISSUE = 1

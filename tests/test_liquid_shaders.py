@@ -34,15 +34,16 @@ class TestLiquidShaders(unittest.TestCase):
 
         out1 = np.zeros((grid_w, grid_h, 3), dtype=np.uint8)
         out2 = np.zeros((grid_w, grid_h, 3), dtype=np.uint8)
+        stains = np.zeros((grid_h, grid_w), dtype=np.uint8)
 
         # Render at time 0.0 and time 1.0
         render_slice_to_surfarray(
             grid, color_var, 0, 0, out1, LUT_COLORS, PROP_STATE,
-            COLOR_BG_DARK[0], COLOR_BG_DARK[1], COLOR_BG_DARK[2], time_val=0.0
+            COLOR_BG_DARK[0], COLOR_BG_DARK[1], COLOR_BG_DARK[2], stains, time_val=0.0
         )
         render_slice_to_surfarray(
             grid, color_var, 0, 0, out2, LUT_COLORS, PROP_STATE,
-            COLOR_BG_DARK[0], COLOR_BG_DARK[1], COLOR_BG_DARK[2], time_val=1.0
+            COLOR_BG_DARK[0], COLOR_BG_DARK[1], COLOR_BG_DARK[2], stains, time_val=1.0
         )
 
         # Surface row (y = 20) should have specular highlight exceeding base blood red
@@ -66,6 +67,7 @@ class TestLiquidShaders(unittest.TestCase):
         grid_w, grid_h = 20, 20
         grid = np.zeros((grid_h, grid_w), dtype=np.uint8)
         color_var = np.zeros((grid_h, grid_w), dtype=np.uint8)
+        stains = np.zeros((grid_h, grid_w), dtype=np.uint8)
 
         # Solid bone container wall at x = 0
         grid[:, 0] = MAT_BONE
@@ -75,7 +77,7 @@ class TestLiquidShaders(unittest.TestCase):
         out = np.zeros((grid_w, grid_h, 3), dtype=np.uint8)
         render_slice_to_surfarray(
             grid, color_var, 0, 0, out, LUT_COLORS, PROP_STATE,
-            COLOR_BG_DARK[0], COLOR_BG_DARK[1], COLOR_BG_DARK[2], time_val=0.0
+            COLOR_BG_DARK[0], COLOR_BG_DARK[1], COLOR_BG_DARK[2], stains, time_val=0.0
         )
 
         # Pixel at (x=1, y=9) is AIR, but touches WALL (x=0) and LIQUID BELOW (y=10)
@@ -92,6 +94,7 @@ class TestLiquidShaders(unittest.TestCase):
         grid_w, grid_h = 20, 20
         grid = np.zeros((grid_h, grid_w), dtype=np.uint8)
         color_var = np.zeros((grid_h, grid_w), dtype=np.uint8)
+        stains = np.zeros((grid_h, grid_w), dtype=np.uint8)
 
         # Liquid mutagen on left (x=4) and right (x=6), with air gap at x=5
         grid[10, 4] = MAT_MUTAGEN
@@ -101,7 +104,7 @@ class TestLiquidShaders(unittest.TestCase):
         out = np.zeros((grid_w, grid_h, 3), dtype=np.uint8)
         render_slice_to_surfarray(
             grid, color_var, 0, 0, out, LUT_COLORS, PROP_STATE,
-            COLOR_BG_DARK[0], COLOR_BG_DARK[1], COLOR_BG_DARK[2], time_val=0.0
+            COLOR_BG_DARK[0], COLOR_BG_DARK[1], COLOR_BG_DARK[2], stains, time_val=0.0
         )
 
         bridged_pixel = out[5, 10]

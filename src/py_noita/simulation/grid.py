@@ -37,6 +37,8 @@ class SimulationGrid:
         self.life = np.zeros((height, width), dtype=np.uint16)
         # color_var[y, x] = Shading variation index (uint8, 0-3)
         self.color_var = np.random.randint(0, 4, size=(height, width), dtype=np.uint8)
+        # Permanent visceral stain & decal map (uint8, STAIN_*)
+        self.stain_map = np.zeros((height, width), dtype=np.uint8)
 
         # Chunk tracking
         self.chunks_x = (width + CHUNK_SIZE - 1) // CHUNK_SIZE
@@ -134,10 +136,56 @@ class SimulationGrid:
                     if cur_mat != MAT_WALL_BONE and cur_mat != fill_mat:
                         self.grid[y, x] = fill_mat
                         self.life[y, x] = PROP_LIFETIME[fill_mat]
+                        self.stain_map[y, x] = 0  # Clear stain on carved air
                         modified += 1
+
+        # Scorch newly exposed cavity walls with char / soot decal marks
+        if fill_mat == MAT_AIR and radius >= 3:
+            scorch_r = radius + 2
+            scorch_r_sq = scorch_r * scorch_r
+            sx0 = max(1, cx - scorch_r)
+            sx1 = min(self.width - 2, cx + scorch_r)
+            sy0 = max(1, cy - scorch_r)
+            sy1 = min(self.height - 2, cy + scorch_r)
+            for sy in range(sy0, sy1 + 1):
+                sdy_sq = (sy - cy) * (sy - cy)
+                for sx in range(sx0, sx1 + 1):
+                    d_sq = (sx - cx) * (sx - cx) + sdy_sq
+                    if r_sq < d_sq <= scorch_r_sq:
+                        if self.is_solid(sx, sy) and np.random.random() < 0.7:
+                            self.stain_map[sy, sx] = 5  # STAIN_CHAR
 
         self.mark_dirty(cx, cy, radius + 2)
         return modified
+
+    def apply_decal_splatter(
+        self,
+        cx: int,
+        cy: int,
+        radius: int,
+        stain_type: int,
+        density: float = 0.6,
+    ) -> int:
+        """Splatter permanent stains (blood, slime, acid, mutagen, char) onto solid tissue/bone walls."""
+        stained = 0
+        r_sq = radius * radius
+        x0 = max(1, cx - radius)
+        x1 = min(self.width - 2, cx + radius)
+        y0 = max(1, cy - radius)
+        y1 = min(self.height - 2, cy + radius)
+
+        for y in range(y0, y1 + 1):
+            dy_sq = (y - cy) * (y - cy)
+            for x in range(x0, x1 + 1):
+                dist_sq = (x - cx) * (x - cx) + dy_sq
+                if dist_sq <= r_sq:
+                    if self.is_solid(x, y):
+                        dist_norm = math.sqrt(dist_sq) / max(1.0, float(radius))
+                        prob = density * (1.0 - dist_norm * 0.4)
+                        if np.random.random() < prob:
+                            self.stain_map[y, x] = stain_type
+                            stained += 1
+        return stained
 
     def spray_circle(self, cx: int, cy: int, radius: int, mat: int, density: float = 0.6) -> int:
         """Spray particles in a circular burst (e.g. for blood or acid splashes)."""

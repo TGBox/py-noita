@@ -108,7 +108,7 @@
     - Feinde (z.B. Parasiten-Spinnen und T-Zellen) mit physikalisch animierten Beinen/Geißeln.
     - Fresszellen (Makrophagen) verformen sich amöboid organisch durch enge Spalten.
 
-[ ] (B) [ART] Viszerales Skelettierungs- & Decal-System.
+[x] (B) [ART] Viszerales Skelettierungs- & Decal-System.
     - Getötete Feinde hinterlassen Knochenskelette, die in Säure zersetzt oder von Explosionen zerschmettert werden können.
     - Blutspritzer und Schleim färben Gewebewände permanent ein (Decal-Map).
     - Brandnarben und Rußflecken an verkohltem Gewebe.

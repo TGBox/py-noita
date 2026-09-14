@@ -1,7 +1,7 @@
 """Core rendering engine: Pixel grid blitting, dynamic scaling, and aspect management."""
 
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 import pygame
 import numpy as np
 from numba import njit
@@ -46,6 +46,7 @@ def render_slice_to_surfarray(
     bg_r: int,
     bg_g: int,
     bg_b: int,
+    stain_map: np.ndarray,
     time_val: float = 0.0,
 ) -> None:
     """Fast Numba kernel that writes the visible world slice directly into
@@ -201,6 +202,29 @@ def render_slice_to_surfarray(
                     g = max(0, min(255, base_g + offset))
                     b = max(0, min(255, base_b + offset))
 
+                    # Permanent visceral decals (blood crust, slime, mutagen, acid etch, char/soot)
+                    stain = stain_map[gy, gx]
+                    if stain == 1:  # STAIN_BLOOD: arterial coagulated red
+                        r = min(255, int(r * 0.55 + 95))
+                        g = int(g * 0.25)
+                        b = int(b * 0.30)
+                    elif stain == 2:  # STAIN_SLIME: yellowish pus / bile sheen
+                        r = min(255, int(r * 0.65 + 65))
+                        g = min(255, int(r * 0.70 + 75))
+                        b = int(b * 0.20)
+                    elif stain == 3:  # STAIN_MUTAGEN: glowing violet mutagen residue
+                        r = min(255, int(r * 0.55 + 85))
+                        g = int(g * 0.20)
+                        b = min(255, int(r * 0.65 + 115))
+                    elif stain == 4:  # STAIN_ACID: caustic corrosive etch
+                        r = int(r * 0.35 + 20)
+                        g = min(255, int(g * 0.75 + 90))
+                        b = int(b * 0.35 + 20)
+                    elif stain == 5:  # STAIN_CHAR: charred carbon soot mark
+                        r = int(r * 0.15 + 8)
+                        g = int(g * 0.15 + 6)
+                        b = int(b * 0.15 + 8)
+
                     out_surfarray[sx, sy, 0] = r
                     out_surfarray[sx, sy, 1] = g
                     out_surfarray[sx, sy, 2] = b
@@ -272,10 +296,12 @@ class Renderer:
         color_var: np.ndarray,
         cam_x: int,
         cam_y: int,
+        stain_map: Optional[np.ndarray] = None,
         dt: float = 0.016,
     ) -> None:
-        """Blit simulation grid pixels to the internal sim_surface with fluid smoothing and surface wave gleams."""
+        """Blit simulation grid pixels to the internal sim_surface with fluid smoothing, surface wave gleams, and permanent decals."""
         self.anim_time += dt
+        stains = stain_map if stain_map is not None else np.zeros((grid.shape[0], grid.shape[1]), dtype=np.uint8)
         render_slice_to_surfarray(
             grid,
             color_var,
@@ -287,6 +313,7 @@ class Renderer:
             COLOR_BG_DARK[0],
             COLOR_BG_DARK[1],
             COLOR_BG_DARK[2],
+            stains,
             self.anim_time,
         )
         pygame.surfarray.blit_array(self.sim_surface, self.surfarray_buffer)

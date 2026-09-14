@@ -35,6 +35,7 @@ from py_noita.rendering.camera import Camera
 from py_noita.rendering.lighting import LightSource, LightingEngine
 from py_noita.rendering.particles import ParticleSystem
 from py_noita.rendering.renderer import Renderer
+from py_noita.simulation.decals import spawn_corpse_skeleton
 from py_noita.simulation.explosion import ExplosionDebris, create_explosion
 from py_noita.simulation.grid import SimulationGrid
 from py_noita.simulation.materials import (
@@ -600,6 +601,8 @@ class Game:
                 self.player.biomass_currency += enemy.biomass_value
                 self.particles.spawn_blood_burst(enemy.center_x, enemy.center_y, count=18)
                 self.audio.play("bone_crack", volume=0.7)
+                # Visceral anatomical skeleton & permanent wall decals
+                spawn_corpse_skeleton(self.grid, enemy.center_x, enemy.center_y, enemy.enemy_type, enemy.blood_mat)
 
         self.enemies.extend(spawned_minions)
         self.enemies = [e for e in self.enemies if e.alive]
@@ -810,8 +813,8 @@ class Game:
         """Render playing world, entities, lighting, and HUD."""
         cam_x, cam_y = self.camera.get_offset()
 
-        # 1. Render Fallingsand Pixel World Grid
-        self.renderer.render_grid(self.grid.grid, self.grid.color_var, cam_x, cam_y)
+        # 1. Render Fallingsand Pixel World Grid with Decals
+        self.renderer.render_grid(self.grid.grid, self.grid.color_var, cam_x, cam_y, stain_map=self.grid.stain_map)
 
         # 2. Draw Entities
         surf = self.renderer.sim_surface
