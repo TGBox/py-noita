@@ -613,7 +613,7 @@ class Game:
                 self.kills_this_run += 1
                 self.player.biomass_currency += enemy.biomass_value
                 self.particles.spawn_blood_burst(enemy.center_x, enemy.center_y, count=18)
-                self.audio.play("bone_crack", volume=0.7)
+                self.audio.play_spatial("bone_crack", enemy.center_x, enemy.center_y, self.player.center_x, self.player.center_y, volume=0.8)
                 # Visceral anatomical skeleton & permanent wall decals
                 spawn_corpse_skeleton(self.grid, enemy.center_x, enemy.center_y, enemy.enemy_type, enemy.blood_mat)
 
@@ -628,18 +628,18 @@ class Game:
         # 7. Check Loot Cysts
         for cyst in self.loot_cysts:
             if cyst.alive:
-                dist = math.hypot(self.player.center_x - cyst.x, self.player.center_y - cyst.y)
-                if dist < 16.0:
+                dist = math.hypot(cyst.x - self.player.center_x, cyst.y - self.player.center_y)
+                if dist < 24.0:
                     cyst.alive = False
                     self.player.biomass_currency += 35
-                    self.audio.play("pickup", volume=0.9)
+                    self.audio.play_spatial("pickup", cyst.x, cyst.y, self.player.center_x, self.player.center_y, volume=0.9)
                     self.particles.spawn_spore_puff(cyst.x, cyst.y, count=12)
 
         # 7b. Check Gene Orbs & Secret Boss Attacks
         for orb in self.gene_orbs:
             new_gene = orb.update(self.player)
             if new_gene:
-                self.audio.play("pickup", volume=1.0)
+                self.audio.play_spatial("pickup", orb.x, orb.y, self.player.center_x, self.player.center_y, volume=1.0)
                 self.particles.spawn_spore_puff(orb.x, orb.y, count=30)
 
         if self.secret_boss and self.secret_boss.alive and hasattr(self.secret_boss, "update_boss"):
@@ -718,6 +718,14 @@ class Game:
         if hasattr(self.grid, "pending_explosions"):
             for ex_x, ex_y, ex_power in self.grid.pending_explosions:
                 self.renderer.post_processor.trigger_detonation(ex_x, ex_y, cam_x, cam_y, ex_power)
+                self.audio.play_spatial(
+                    "explosion",
+                    ex_x,
+                    ex_y,
+                    self.player.center_x,
+                    self.player.center_y,
+                    volume=min(1.0, 0.7 + ex_power * 0.05),
+                )
             self.grid.pending_explosions.clear()
 
         heat_val = 0.8 if self.player.on_fire else (0.3 if self.player.fire_timer > 0 else 0.0)

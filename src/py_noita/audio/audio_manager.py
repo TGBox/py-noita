@@ -13,6 +13,7 @@ from py_noita.audio.sound_synth import (
 )
 from py_noita.audio.music_engine import AdaptiveMusicEngine, THEME_INCUBATION, THEME_BOSS
 from py_noita.audio.acoustics import AcousticsEngine
+from py_noita.audio.spatial import SpatialAudioEngine
 
 
 class AudioManager:
@@ -25,6 +26,7 @@ class AudioManager:
         self._init_audio()
         self.music: AdaptiveMusicEngine = AdaptiveMusicEngine()
         self.acoustics: AcousticsEngine = AcousticsEngine()
+        self.spatial: SpatialAudioEngine = SpatialAudioEngine()
 
     def _init_audio(self) -> None:
         """Synthesize and pre-cache all procedural sound effects."""
@@ -76,3 +78,38 @@ class AudioManager:
         sound.set_volume(effective_vol)
         sound.play()
         self.cooldowns[sound_name] = throttle
+
+    def play_spatial(
+        self,
+        sound_name: str,
+        world_x: float,
+        world_y: float,
+        listener_x: float,
+        listener_y: float,
+        volume: float = 0.8,
+        throttle: float = 0.05,
+    ) -> Optional[pygame.mixer.Channel]:
+        """Play a sound effect located at world coordinates with 3D stereo panning and attenuation."""
+        if not self.initialized or sound_name not in self.sounds:
+            return None
+
+        if sound_name in self.cooldowns:
+            return None
+
+        ducking = self.acoustics.heartbeat_ducking if hasattr(self, "acoustics") else 1.0
+        muffle = (1.0 - 0.55 * self.acoustics.submerged_factor) if hasattr(self, "acoustics") else 1.0
+
+        sound = self.sounds[sound_name]
+        channel = self.spatial.play_spatial(
+            sound,
+            world_x=world_x,
+            world_y=world_y,
+            listener_x=listener_x,
+            listener_y=listener_y,
+            base_volume=volume,
+            ducking=ducking,
+            muffle=muffle,
+        )
+        if channel:
+            self.cooldowns[sound_name] = throttle
+        return channel

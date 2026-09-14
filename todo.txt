@@ -129,7 +129,7 @@
     - Dynamischer Höhlenhall (Reverb), abhängig von der Größe des umgebenden Hohlraums.
     - Dumpfer Herzschlag-Puls, der bei <25% HP die restliche Audiolandschaft dämpft.
 
-[ ] (B) [AUDIO] 3D-Stereo-Panning & Entfernungsdämpfung.
+[x] (B) [AUDIO] 3D-Stereo-Panning & Entfernungsdämpfung.
     - Räumliche Ortung: Säurezischen, Feindschritte und ferne Explosionen präzise links/rechts im Stereobild verorten.
     - Lautstärkeabfall mit exponentieller Distanzkurve.
 
