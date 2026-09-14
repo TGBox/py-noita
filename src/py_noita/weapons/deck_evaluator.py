@@ -166,6 +166,102 @@ def evaluate_cannula_fire(
             spawned_projectiles.extend(new_projs)
             projectiles_cast += max(1, len(new_projs))
 
+        # META-GENES (Polymerase Duplicators, RNA Loop, Ribosome Catalyst, Ur-Code Alpha/Omega)
+        elif gene.gene_type == GeneType.META:
+            m_type = getattr(gene, "meta_type", "NONE")
+            if m_type.startswith("DIVIDE_"):
+                mult = getattr(gene, "meta_multiplier", 1)
+                # Look ahead for target gene
+                if genes_evaluated < num_genes:
+                    target_idx = sequence[pointer]
+                    target_gene = active_genes[target_idx]
+                    pointer = (pointer + 1) % num_genes
+                    genes_evaluated += 1
+
+                    # Apply recursion brake: if chaining multiple Divide By, cap multiplier
+                    polymerase_chains = [g for g in active_genes if getattr(g, "meta_type", "").startswith("DIVIDE_")]
+                    if len(polymerase_chains) > 3:
+                        mult = min(mult, 4)
+
+                    if target_gene.gene_type == GeneType.MODIFIER:
+                        for _ in range(mult):
+                            cast_state.apply_modifier(target_gene)
+                    elif target_gene.gene_type == GeneType.MULTICAST:
+                        needed_projectiles += (target_gene.multicast_count - 1) * mult
+                    elif target_gene.gene_type in (GeneType.PROJECTILE, GeneType.TRIGGER):
+                        for _ in range(mult):
+                            sub_projs = _dispatch_formation_projectiles(
+                                target_gene,
+                                cast_state,
+                                origin_x,
+                                origin_y,
+                                base_angle,
+                                cannula.spread,
+                                owner,
+                                payload=None,
+                                shooter=shooter,
+                            )
+                            spawned_projectiles.extend(sub_projs)
+                            projectiles_cast += max(1, len(sub_projs))
+
+            elif m_type == "COPY_FIRST":
+                first_gene = next((g for g in cannula.genes if g.gene_type != GeneType.META), None)
+                if first_gene:
+                    if first_gene.gene_type == GeneType.MODIFIER:
+                        cast_state.apply_modifier(first_gene)
+                    elif first_gene.gene_type in (GeneType.PROJECTILE, GeneType.TRIGGER):
+                        sub_projs = _dispatch_formation_projectiles(
+                            first_gene, cast_state, origin_x, origin_y, base_angle, cannula.spread, owner, payload=None, shooter=shooter
+                        )
+                        spawned_projectiles.extend(sub_projs)
+                        projectiles_cast += max(1, len(sub_projs))
+                    elif first_gene.gene_type == GeneType.MULTICAST:
+                        needed_projectiles += first_gene.multicast_count - 1
+
+            elif m_type == "COPY_LAST":
+                last_gene = next((g for g in reversed(cannula.genes) if g.gene_type != GeneType.META), None)
+                if last_gene:
+                    if last_gene.gene_type == GeneType.MODIFIER:
+                        cast_state.apply_modifier(last_gene)
+                    elif last_gene.gene_type in (GeneType.PROJECTILE, GeneType.TRIGGER):
+                        sub_projs = _dispatch_formation_projectiles(
+                            last_gene, cast_state, origin_x, origin_y, base_angle, cannula.spread, owner, payload=None, shooter=shooter
+                        )
+                        spawned_projectiles.extend(sub_projs)
+                        projectiles_cast += max(1, len(sub_projs))
+                    elif last_gene.gene_type == GeneType.MULTICAST:
+                        needed_projectiles += last_gene.multicast_count - 1
+
+            elif m_type == "LOOP_FIRST":
+                if cannula.genes:
+                    fg = cannula.genes[0]
+                    if fg.gene_type == GeneType.MODIFIER:
+                        cast_state.apply_modifier(fg)
+                    elif fg.gene_type in (GeneType.PROJECTILE, GeneType.TRIGGER):
+                        sub_projs = _dispatch_formation_projectiles(
+                            fg, cast_state, origin_x, origin_y, base_angle, cannula.spread, owner, payload=None, shooter=shooter
+                        )
+                        spawned_projectiles.extend(sub_projs)
+                        projectiles_cast += max(1, len(sub_projs))
+
+            elif m_type == "RANDOM_DISCARD":
+                candidates = [g for g in cannula.genes if g.gene_type != GeneType.META]
+                if candidates:
+                    rand_gene = random.choice(candidates)
+                    if cannula.current_biomass < rand_gene.biomass_cost and shooter is not None:
+                        if hasattr(shooter, "hp"):
+                            shooter.hp = max(1.0, shooter.hp - 2.0)
+                    if rand_gene.gene_type == GeneType.MODIFIER:
+                        cast_state.apply_modifier(rand_gene)
+
+                    elif rand_gene.gene_type in (GeneType.PROJECTILE, GeneType.TRIGGER):
+                        sub_projs = _dispatch_formation_projectiles(
+                            rand_gene, cast_state, origin_x, origin_y, base_angle, cannula.spread, owner, payload=None, shooter=shooter
+                        )
+                        spawned_projectiles.extend(sub_projs)
+                        projectiles_cast += max(1, len(sub_projs))
+
+
     # Update cannula cooldowns and deck pointer
     if cannula.shuffle:
         cannula.deck_pointer = 0

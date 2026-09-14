@@ -28,6 +28,7 @@ class GeneType(Enum):
     TRIGGER = "TRIGGER"
     MODIFIER = "MODIFIER"
     MULTICAST = "MULTICAST"
+    META = "META"
     PASSIVE = "PASSIVE"
 
 
@@ -67,6 +68,11 @@ class Gene:
     gravity: float = 0.0
     critical_chance: float = 0.0
     slow_effect: bool = False
+
+    # Meta-Gene properties (Divide By, Loops, Copy)
+    meta_type: str = "NONE"          # "NONE", "DIVIDE_2", "DIVIDE_3", "DIVIDE_4", "DIVIDE_10", "LOOP_FIRST", "RANDOM_DISCARD", "COPY_FIRST", "COPY_LAST"
+    meta_multiplier: int = 1
+
 
     # Multicast count (for MULTICAST types)
     multicast_count: int = 1
@@ -1742,6 +1748,95 @@ GENE_LIBRARY: List[Gene] = [
         formation_type="LINE_STREAM",
         color=(255, 220, 110),
     ),
+
+    # =========================================================================
+    # 5. META-GENES & REPLICATION CATALYSTS (8 Cards)
+    # =========================================================================
+    Gene(
+        id="POLYMERASE_X2",
+        name="Polymerase-Duplikator x2",
+        gene_type=GeneType.META,
+        description="Verdoppelt den nachfolgenden Gen-Effekt im Deck mit Rekursions-Bremse.",
+        biomass_cost=15.0,
+        cast_delay_mod=0.08,
+        meta_type="DIVIDE_2",
+        meta_multiplier=2,
+        color=(255, 215, 60),
+    ),
+    Gene(
+        id="POLYMERASE_X3",
+        name="Polymerase-Duplikator x3",
+        gene_type=GeneType.META,
+        description="Verdreifacht den nachfolgenden Gen-Effekt mit Rekursions-Dämpfung.",
+        biomass_cost=25.0,
+        cast_delay_mod=0.15,
+        meta_type="DIVIDE_3",
+        meta_multiplier=3,
+        color=(255, 190, 40),
+    ),
+    Gene(
+        id="POLYMERASE_X4",
+        name="Polymerase-Duplikator x4",
+        gene_type=GeneType.META,
+        description="Vervierfacht den nachfolgenden Gen-Effekt für gigantische Kaskaden.",
+        biomass_cost=38.0,
+        cast_delay_mod=0.22,
+        meta_type="DIVIDE_4",
+        meta_multiplier=4,
+        color=(255, 150, 30),
+    ),
+    Gene(
+        id="POLYMERASE_X10",
+        name="Polymerase-Duplikator x10",
+        gene_type=GeneType.META,
+        description="Zehnfacht das nachfolgende Gen. Verbraucht massive Biomasse, streng rekursionsgebremst.",
+        biomass_cost=70.0,
+        cast_delay_mod=0.45,
+        meta_type="DIVIDE_10",
+        meta_multiplier=10,
+        color=(255, 70, 10),
+    ),
+    Gene(
+        id="CIRCULAR_RNA_LOOP",
+        name="Zirkuläre RNA-Schleife",
+        gene_type=GeneType.META,
+        description="Ruft das erste Gen der Kanüle erneut auf und schließt die Sequenz zyklisch ab.",
+        biomass_cost=12.0,
+        cast_delay_mod=0.06,
+        meta_type="LOOP_FIRST",
+        color=(140, 240, 210),
+    ),
+    Gene(
+        id="RIBOSOME_CATALYST",
+        name="Ribosomen-Katalysator",
+        gene_type=GeneType.META,
+        description="Feuert ein zufälliges Gen aus der Kanüle ohne Biomasse-Verbrauch (zieht bei Mangel HP ab).",
+        biomass_cost=0.0,
+        cast_delay_mod=0.04,
+        meta_type="RANDOM_DISCARD",
+        color=(220, 140, 255),
+    ),
+    Gene(
+        id="UR_CODE_ALPHA",
+        name="Ur-Code Alpha",
+        gene_type=GeneType.META,
+        description="Repliziert das exakt erste Gen der Kanüle ohne zusätzliche Biomassekosten.",
+        biomass_cost=5.0,
+        cast_delay_mod=0.02,
+        meta_type="COPY_FIRST",
+        color=(80, 220, 255),
+    ),
+    Gene(
+        id="UR_CODE_OMEGA",
+        name="Ur-Code Omega",
+        gene_type=GeneType.META,
+        description="Repliziert das letzte Gen der Kanüle ohne zusätzliche Biomassekosten.",
+        biomass_cost=5.0,
+        cast_delay_mod=0.02,
+        meta_type="COPY_LAST",
+        color=(240, 80, 255),
+    ),
 ]
 
 GENE_DICT = {gene.id: gene for gene in GENE_LIBRARY}
+

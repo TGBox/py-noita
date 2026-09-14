@@ -72,11 +72,12 @@
     - 15 neue Formations- und Multicast-Karten: Pentagon, Hexagon, Hinterhalt-Schuss, Schmetterling-Formation.
 
 
-[ ] (A) [WEAPONS] Meta-Gene & Replikations-Katalysatoren (Noita "Divide By" & Griechische Buchstaben).
+[x] (A) [WEAPONS] Meta-Gene & Replikations-Katalysatoren (Noita "Divide By" & Griechische Buchstaben).
     - Polymerase-Duplikator x2, x3, x4, x10 (multipliziert nachfolgende Gen-Effekte mit Rekursions-Bremse).
     - Zirkuläre RNA-Schleife (ruft das erste Gen der Kanüle erneut auf).
     - Ribosomen-Katalysator (feuert zufälliges Gen aus dem Ablagestapel ohne Biomasse-Verbrauch).
     - Ur-Code Alpha / Omega (kopiert das erste bzw. letzte Gen der Kanüle).
+
 
 [ ] (B) [WEAPONS] Material-Transmutations-Gene.
     - Sekret: "Fleisch zu Magensäure" (verwandelt getroffenes Gewebe im Umkreis in Säure).
