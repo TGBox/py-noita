@@ -11,16 +11,18 @@ from py_noita.audio.sound_synth import (
     synth_shot,
     synth_squelch,
 )
+from py_noita.audio.music_engine import AdaptiveMusicEngine, THEME_INCUBATION, THEME_BOSS
 
 
 class AudioManager:
-    """Manages playing synthesized visceral audio effects with rate limiting."""
+    """Manages playing synthesized visceral audio effects and adaptive multi-track soundtrack."""
 
     def __init__(self):
         self.sounds: Dict[str, pygame.mixer.Sound] = {}
         self.cooldowns: Dict[str, float] = {}
         self.initialized: bool = False
         self._init_audio()
+        self.music: AdaptiveMusicEngine = AdaptiveMusicEngine()
 
     def _init_audio(self) -> None:
         """Synthesize and pre-cache all procedural sound effects."""
@@ -41,11 +43,14 @@ class AudioManager:
             self.initialized = False
 
     def update(self, dt: float) -> None:
-        """Tick sound cooldowns."""
+        """Tick sound cooldowns and adaptive music cross-fading."""
         for key in list(self.cooldowns.keys()):
             self.cooldowns[key] -= dt
             if self.cooldowns[key] <= 0.0:
                 del self.cooldowns[key]
+
+        if hasattr(self, "music") and self.music:
+            self.music.update(dt)
 
     def play(self, sound_name: str, volume: float = 0.8, throttle: float = 0.06) -> None:
         """Play a sound effect if not throttled."""

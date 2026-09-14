@@ -119,7 +119,7 @@
 # ------------------------------------------------------------------------------
 # MEILENSTEIN 5: ADAPTIVER SOUNDTRACK, AUDIO-MIXER & AKUSTIK-FILTER
 # ------------------------------------------------------------------------------
-[ ] (A) [AUDIO] Mehrspuriger, dynamisch adaptiver Bio-Horror-Soundtrack.
+[x] (A) [AUDIO] Mehrspuriger, dynamisch adaptiver Bio-Horror-Soundtrack.
     - Mehrspurige Musik-Layers pro Biom (Ambient-Fläche, Bass-Puls, Perkussion, Noise-Texturen).
     - Nahtlose, latenzfreie Überblendung: Bei Feindkontakt schalten die treibenden Kampf-Drums automatisch zu.
     - Eigene musikalische Themen für Bosskämpfe und den Heiligen Berg (Inkubations-Knoten).

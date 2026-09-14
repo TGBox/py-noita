@@ -9,6 +9,7 @@ from typing import List, Optional
 import pygame
 
 from py_noita.audio.audio_manager import AudioManager
+from py_noita.audio.music_engine import THEME_BOSS, THEME_INCUBATION
 from py_noita.config import (
     COLOR_ACID_GLOW,
     COLOR_BG_DARK,
@@ -295,6 +296,14 @@ class Game:
         self.grid.physics_world = self.physics_world
         self.audio.play("squelch", volume=0.7)
 
+        # Update adaptive music theme for this biome
+        if hasattr(self.audio, "music") and self.audio.music:
+            if self.secret_boss is not None and getattr(self.secret_boss, "alive", True):
+                self.audio.music.set_theme(THEME_BOSS)
+            else:
+                self.audio.music.set_theme(biome_index)
+            self.audio.music.set_combat_intensity(0.0)
+
     def enter_incubation_node(self) -> None:
         """Generate and enter the Incubation Node sanctuary."""
         self.state = STATE_INCUBATION
@@ -331,6 +340,10 @@ class Game:
         self.enemies.clear()
         self.projectiles.clear()
         self.audio.play("pickup", volume=0.9)
+
+        if hasattr(self.audio, "music") and self.audio.music:
+            self.audio.music.set_theme(THEME_INCUBATION)
+            self.audio.music.set_combat_intensity(0.0)
 
     def trigger_ending(self, ending_id: int) -> None:
         """Trigger one of the three alternative narrative endings."""
@@ -683,6 +696,22 @@ class Game:
             input_state.aim_world_y,
         )
         self.particles.update(self.grid)
+        # Dynamic combat intensity for adaptive soundtrack cross-fade
+        if hasattr(self.audio, "music") and self.audio.music:
+            in_combat = False
+            if self.secret_boss and getattr(self.secret_boss, "alive", True):
+                in_combat = True
+            else:
+                p_cx, p_cy = self.player.center_x, self.player.center_y
+                for e in self.enemies:
+                    if getattr(e, "alive", True):
+                        dx = e.center_x - p_cx
+                        dy = e.center_y - p_cy
+                        if dx * dx + dy * dy < 240.0 * 240.0:
+                            in_combat = True
+                            break
+            self.audio.music.set_combat_intensity(1.0 if in_combat else 0.0)
+
         self.audio.update(dt)
 
         # 9b. Update Shader Post-Processing Effects (heat shimmer, acid refraction, shockwaves, low HP pulse)
