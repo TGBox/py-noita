@@ -154,6 +154,18 @@ class Projectile:
                             return spawned_children
                         self.pierce_health -= 1
 
+            # 1c. Tendon / Joint collision
+            if pw and getattr(pw, "tendons", None):
+                for tendon in pw.tendons:
+                    if not tendon.severed and tendon.check_hit(nx, ny, radius=self.radius + 3.0):
+                        tendon.take_damage(self.damage)
+                        self._handle_impact(grid, int(nx), int(ny))
+                        spawned_children.extend(self._trigger_payload(nx, ny))
+                        if not self.piercing or self.pierce_health <= 0:
+                            self.alive = False
+                            return spawned_children
+                        self.pierce_health -= 1
+
             # 2. Terrain collision
             ix, iy = int(nx), int(ny)
             if 0 <= ix < grid.width and 0 <= iy < grid.height:

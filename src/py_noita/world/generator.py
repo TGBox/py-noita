@@ -6,6 +6,12 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 
 from py_noita.config import WORLD_HEIGHT, WORLD_WIDTH
+from py_noita.physics.joints import (
+    CartilageTendon,
+    CeilingTentacle,
+    NerveLantern,
+    SwingingMeatChunk,
+)
 from py_noita.physics.props import (
     AcidGallbladder,
     BiogasCyst,
@@ -206,3 +212,40 @@ def spawn_biome_props(physics_world, grid: SimulationGrid, biome: Biome, count: 
 
             physics_world.add_body(prop)
             spawned += 1
+
+    # 3. Hanging objects from cavern ceilings: Nerve Lanterns, Meat Chunks, and Ceiling Tentacles
+    ceiling_candidates = []
+    for cx in range(25, max(30, w - 25), 12):
+        for cy in range(int(h * 0.1), max(int(h * 0.11), int(h * 0.85))):
+            if grid.is_solid(cx, cy):
+                # Check for vertical clearance below
+                is_clear_ceiling = True
+                for dy in range(1, 18):
+                    if not grid.is_empty(cx, cy + dy):
+                        is_clear_ceiling = False
+                        break
+                if is_clear_ceiling:
+                    ceiling_candidates.append((cx, cy))
+                    break
+
+    random.shuffle(ceiling_candidates)
+    hanging_count = min(len(ceiling_candidates), max(3, int(count * 0.6)))
+    for i in range(hanging_count):
+        cx, cy = ceiling_candidates[i]
+        choice = random.random()
+        if choice < 0.45:
+            # Nerve Lantern
+            lantern = NerveLantern(physics_world.space, float(cx), float(cy + 16), anchor_y=float(cy))
+            physics_world.add_body(lantern)
+            if lantern.tendon:
+                physics_world.add_tendon(lantern.tendon)
+        elif choice < 0.75:
+            # Swinging Meat Chunk
+            chunk = SwingingMeatChunk(physics_world.space, float(cx), float(cy + 20), anchor_y=float(cy))
+            physics_world.add_body(chunk)
+            if chunk.tendon:
+                physics_world.add_tendon(chunk.tendon)
+        else:
+            # Ceiling Tentacle
+            tentacle = CeilingTentacle(physics_world, float(cx), float(cy + 1), num_segments=random.randint(4, 6))
+            physics_world.add_tentacle(tentacle)

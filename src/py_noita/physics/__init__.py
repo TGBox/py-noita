@@ -1,5 +1,12 @@
 """2D Rigid-body physics engine coupled with pixel simulation grid."""
 
+from py_noita.physics.joints import (
+    CartilageTendon,
+    CeilingTentacle,
+    NerveLantern,
+    SwingingMeatChunk,
+    TentacleSegment,
+)
 from py_noita.physics.physics_world import PhysicsWorld
 from py_noita.physics.props import (
     AcidGallbladder,
@@ -18,4 +25,9 @@ __all__ = [
     "CartilageRaft",
     "BoneMinecart",
     "ChitinShield",
+    "CartilageTendon",
+    "NerveLantern",
+    "SwingingMeatChunk",
+    "CeilingTentacle",
+    "TentacleSegment",
 ]

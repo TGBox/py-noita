@@ -22,7 +22,7 @@
     - Schwimmende Knorpel-Flöße auf Blut- und Säureseen.
     - Knochen-Minenkarren und schiebbare Chitin-Schutzschilde.
 
-[ ] (B) [GAMEPLAY] Aufgehängte Objekte und Gelenk-Physik (Ketten & Gelenke).
+[x] (B) [GAMEPLAY] Aufgehängte Objekte und Gelenk-Physik (Ketten & Gelenke).
     - An Knorpelsehnen hängende Nerven-Lampions (spenden Licht, stürzen bei Treffern ab und entzünden den Boden).
     - Schwingende Fleischklumpen und Decken-Tentakel.
 

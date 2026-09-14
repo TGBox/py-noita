@@ -451,7 +451,15 @@ class Game:
         self.explosion_debris = [d for d in self.explosion_debris if d.update(self.grid)]
 
         # 5b. Update 2D Rigid-Body Physics
-        self.physics_world.update(dt, cam_x, cam_y, self.renderer.view_w, self.renderer.view_h)
+        self.physics_world.update(
+            dt,
+            cam_x,
+            cam_y,
+            self.renderer.view_w,
+            self.renderer.view_h,
+            enemies=self.enemies,
+            player=self.player,
+        )
 
         # 6. Update Enemies & AI
         spawned_hostile_projs: List[Projectile] = []
@@ -648,6 +656,9 @@ class Game:
 
         for proj in self.projectiles:
             lights.append(LightSource(proj.x, proj.y, radius=proj.radius * 6.0, color=proj.color, intensity=0.7))
+
+        if self.physics_world:
+            lights.extend(self.physics_world.get_lights())
 
         self.lighting.render(surf, cam_x, cam_y, lights, self.grid.grid)
 

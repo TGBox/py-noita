@@ -30,6 +30,8 @@ class PhysicsWorld:
         self.space.damping = 0.96
 
         self.bodies: List[BioRigidBody] = []
+        self.tendons: List[Any] = []
+        self.tentacles: List[Any] = []
 
     def add_body(self, body: BioRigidBody) -> BioRigidBody:
         """Register a rigid body into the simulation."""
@@ -45,6 +47,27 @@ class PhysicsWorld:
         if body.body in self.space.bodies:
             self.space.remove(body.body)
 
+    def add_tendon(self, tendon: Any) -> Any:
+        """Register a cartilage tendon into the simulation."""
+        self.tendons.append(tendon)
+        return tendon
+
+    def remove_tendon(self, tendon: Any) -> None:
+        """Remove and sever a tendon."""
+        if tendon in self.tendons:
+            self.tendons.remove(tendon)
+        tendon.sever()
+
+    def add_tentacle(self, tentacle: Any) -> Any:
+        """Register a ceiling tentacle into the simulation."""
+        self.tentacles.append(tentacle)
+        return tentacle
+
+    def remove_tentacle(self, tentacle: Any) -> None:
+        """Remove a ceiling tentacle."""
+        if tentacle in self.tentacles:
+            self.tentacles.remove(tentacle)
+
     def apply_explosion(
         self,
         cx: float,
@@ -52,8 +75,12 @@ class PhysicsWorld:
         radius: float = 16.0,
         power: float = 40.0,
     ) -> None:
-        """Apply explosion shockwave impulse, torque, and damage to rigid bodies."""
+        """Apply explosion shockwave impulse, torque, and damage to rigid bodies and tendons."""
         max_dist = radius * 2.8
+        for t in self.tendons:
+            if not t.severed and t.distance_to(cx, cy) <= max_dist:
+                t.take_damage(power * 1.5)
+
         for b in self.bodies:
             if not b.alive:
                 continue
@@ -88,6 +115,7 @@ class PhysicsWorld:
         view_w: int,
         view_h: int,
         enemies: Optional[List[Any]] = None,
+        player: Optional[Any] = None,
     ) -> None:
         """Simulate rigid body step and couple with the pixel grid."""
         # 1. Step Pymunk physics
@@ -98,10 +126,15 @@ class PhysicsWorld:
             self._pre_physics_terrain_collision()
             self.space.step(sub_dt)
 
-        # 2. Pixel displacement, buoyancy, and crushing
+        # 2. Update tentacles
+        for tentacle in self.tentacles:
+            if tentacle.alive:
+                tentacle.update(dt, player=player, enemies=enemies)
+
+        # 3. Pixel displacement, buoyancy, and crushing
         self._displace_and_crush_pixels()
 
-        # 3. Enemy crushing impacts (e.g. rolling minecarts or heavy props)
+        # 4. Enemy crushing impacts (e.g. rolling minecarts or heavy props)
         if enemies:
             for b in self.bodies:
                 if not b.alive:
@@ -118,7 +151,17 @@ class PhysicsWorld:
                                 # Dampen body velocity
                                 b.body.velocity = (b.body.velocity.x * 0.45, b.body.velocity.y * 0.45)
 
-        # 4. Handle destroyed bodies
+        # 5. Falling lantern ground impact check
+        for b in self.bodies:
+            if b.alive and getattr(b, "name", "") == "Nerven-Lampion" and not getattr(b, "is_hanging", True):
+                rad = b.radius if b.shape_type == "circle" else b.height * 0.5
+                ix = int(round(b.x))
+                iy = int(round(b.y + rad))
+                if 0 <= ix < self.grid.width and 0 <= iy < self.grid.height:
+                    if self.grid.is_solid(ix, iy) or (iy + 1 < self.grid.height and self.grid.is_solid(ix, iy + 1)):
+                        b.take_damage(999.0)
+
+        # 6. Handle destroyed bodies
         surviving = []
         for b in self.bodies:
             if not b.alive:
@@ -130,6 +173,10 @@ class PhysicsWorld:
             else:
                 surviving.append(b)
         self.bodies = surviving
+
+        # Clean up dead tentacles and severed tendons if attached body is dead
+        self.tendons = [t for t in self.tendons if not (t.severed and not t.target_body.alive)]
+        self.tentacles = [t for t in self.tentacles if t.alive]
 
     def _pre_physics_terrain_collision(self) -> None:
         """Detect overlaps between rigid bodies and solid terrain pixels,
@@ -179,6 +226,9 @@ class PhysicsWorld:
                         push_y -= ny
 
             if penetrations > 0:
+                if getattr(b, "name", "") == "Nerven-Lampion" and not getattr(b, "is_hanging", True):
+                    b.take_damage(999.0)
+
                 # Normalize push vector
                 mag = math.hypot(push_x, push_y)
                 if mag > 0.001:
@@ -303,6 +353,33 @@ class PhysicsWorld:
                     b.take_damage(2.0)
 
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
-        """Render all active rigid bodies."""
+        """Render all active tendons, tentacles, and rigid bodies."""
+        # 1. Cartilage tendons
+        for t in self.tendons:
+            t.draw(surface, cam_x, cam_y)
+
+        # 2. Ceiling tentacles
+        for tentacle in self.tentacles:
+            tentacle.draw(surface, cam_x, cam_y)
+
+        # 3. Rigid bodies
         for b in self.bodies:
             b.draw(surface, cam_x, cam_y)
+
+    def get_lights(self) -> List[Any]:
+        """Return bioluminescent light sources emitted by physics props."""
+        from py_noita.rendering.lighting import LightSource
+
+        lights = []
+        for b in self.bodies:
+            if getattr(b, "emits_light", False) and b.alive:
+                lights.append(
+                    LightSource(
+                        world_x=b.x,
+                        world_y=b.y,
+                        radius=getattr(b, "light_radius", 60.0),
+                        color=getattr(b, "light_color", (255, 220, 80)),
+                        intensity=getattr(b, "light_intensity", 0.9),
+                    )
+                )
+        return lights
