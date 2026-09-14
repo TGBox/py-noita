@@ -1,0 +1,168 @@
+# ==============================================================================
+# PY-NOITA: ROADMAP ZUM KOMMERZIELLEN RELEASE (VERKAUFSFERTIGES SPIEL)
+# ==============================================================================
+# Definition of Done (DoD) für den Verkaufsstart auf Steam / GOG / itch.io:
+# 1. Stabile 60+ FPS Pixel- & Rigid-Body-Physik bei 1080p, 1440p und Ultrawide (21:9).
+# 2. Vollständige Noita-Spieltiefe: 120+ Gene, 8+ Biome, Secrets, 3 Enden, Bosskämpfe.
+# 3. Audiovisueller Polish: GLSL-Shader, dynamische Musik, Akustik-Filter, Tentakel-IK.
+# 4. Release-Standards: Quicksave/Resume, Einstellungsmenü, Controller-Remap, Achievements, .exe-Build.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# MEILENSTEIN 1: 2D RIGID-BODY PHYSIK & ZERSTÖRBARE OBJEKTE (PROPS & CHAINS)
+# ------------------------------------------------------------------------------
+[ ] (A) [ENGINE] Physik-Engine-Kopplung (Pymunk / Box2D) mit dem Numba-Pixelgitter implementieren.
+    - Rigid-Bodies verdrängen und zermalmen lose Pixel (Sand, Fleisch, Flüssigkeiten).
+    - Pixel-Explosionen üben physikalische Impulse und Drehmomente auf starre Körper aus.
+    - Kollisionsmasken zwischen Pixel-Gitter und konvexen Polygonen optimieren.
+
+[ ] (A) [GAMEPLAY] Organische zerstörbare Umweltobjekte (Props) integrieren.
+    - Rollende Säure-Gallenblasen (zerplatzen bei Aufprall oder Beschuss in Magensäure).
+    - Instabile Biogas-Zysten (explodieren verheerend bei Kontakt mit Projektilen oder Feuer).
+    - Schwimmende Knorpel-Flöße auf Blut- und Säureseen.
+    - Knochen-Minenkarren und schiebbare Chitin-Schutzschilde.
+
+[ ] (B) [GAMEPLAY] Aufgehängte Objekte und Gelenk-Physik (Ketten & Gelenke).
+    - An Knorpelsehnen hängende Nerven-Lampions (spenden Licht, stürzen bei Treffern ab und entzünden den Boden).
+    - Schwingende Fleischklumpen und Decken-Tentakel.
+
+[ ] (B) [ENGINE] Zelluläre Einsturz- und Strukturmechanik.
+    - Freigeschossene Terrain-Abschnitte (ohne strukturelle Verankerung zu Randknochen) lösen sich und fallen als zerschellende Trümmer herab.
+    - Einstürzende Knorpelbrücken und Decken-Stalaktiten.
+
+# ------------------------------------------------------------------------------
+# MEILENSTEIN 2: WELTUMFANG, CHUNK-STREAMING, GEHEIMNISSE & ENDEN
+# ------------------------------------------------------------------------------
+[ ] (A) [ENGINE] Asynchrones Chunk-Streaming und Speicher-Verwaltung.
+    - Weltgröße von fester Arena auf unbegrenzte/riesige gestreamte Welt erweitern.
+    - Chunks im Hintergrund von Disk laden/speichern, um RAM-Verbrauch unter 500 MB zu halten.
+    - Determinierte Weltgenerierung über Welt-Seed (Seeds im Hauptmenü eingebbar).
+
+[ ] (A) [WORLD] Ausbau auf 8 vollwertige Organ-Biome (Haupt- und Nebenpfade).
+    - Biom 1: Epidermis & Cutis (Hautoberfläche, Keratin, Lymphbecken).
+    - Biom 2: Vaskulärer Muskel (Blutgefäße, Muskelstränge, Makrophagen-Nester).
+    - Biom 3: Magensäure-Kavernen (Gewaltige Verdauungsseen, Biogas-Gasaustritte).
+    - Biom 4: Toxische Gallen-Lagune (Horizontales Nebenbiom mit ätzenden Dämpfen und Chitin-Panzern).
+    - Biom 5: Infizierte Lunge (Schwebende Sporen-Kammern, niedrige Schwerkraft, Atemluft-Ströme).
+    - Biom 6: Knochen-Katakomben (Dichtes Skelett-Labyrinth, Parasitenwürmer, Minenkarren).
+    - Biom 7: Wirbelsäule & Nervenbahnen (Hochspannungs-Synapsen, bio-elektrische Gefahren).
+    - Biom 8: Das Ur-Zentrum (Gehirnkern des Wirts, Mutagen-Fluten, finale Boss-Kammer).
+
+[ ] (B) [GAMEPLAY] Erkundung, Secrets, Gen-Orbs & Lore.
+    - 11 versteckte Gen-Orbs in abgelegenen Organ-Kavitäten platzieren (schalten Ur-Gene frei und stärken den Endboss).
+    - Uralte DNA-Tablets (Lore-Inschriften über den Ursprung des Wirtsorganismus).
+    - Geheime optionale Bio-Bosse:
+        * Der Riesen-Helminth (Gigantischer 30-Segment-Fleischwurm im Knochen-Labyrinth).
+        * Die Ur-Fresszelle (Kolossaler Amöben-Titan in der Gallen-Lagune).
+        * Der Synaptische Parasit (Teleportierender Neuro-Wächter).
+
+[ ] (B) [GAMEPLAY] Drei alternative Endsequenzen und Endgame-Quests.
+    - Ende 1 (Standard): Zerstörung des Ur-Zentrums (Wirtstod).
+    - Ende 2 (Symbiose): Aktivierung aller 11 DNA-Orbs im Nervenzentrum (Vollständige Verschmelzung).
+    - Ende 3 (Kosmische Metamorphose): Aufstieg zur Wirts-Außenhaut mit dem Ur-Genom.
+
+# ------------------------------------------------------------------------------
+# MEILENSTEIN 3: GEN-ARSENAL (120+ GENE) & DEEP WAND-DECKBUILDING
+# ------------------------------------------------------------------------------
+[ ] (A) [WEAPONS] Erweiterung des Gen-Katalogs auf 120+ einzigartige Karten.
+    - 40 neue Projektile: u.a. Knorpel-Schrot, Plasma-Tendril, Zytokin-Laser, Sporen-Mine, Knochen-Bumerang, Schleim-Kugel.
+    - 25 neue Trigger & Timer: Kollisions-Trigger, Timer-Split, Todes-Burst, Proximity-Trigger, Treffer-Rückkehrer.
+    - 30 neue Modifikatoren: Spiral-Umlaufbahn, Chaotische Trajektorie, Schwerelosigkeit, Magnetische Anziehung, Blut-Schadensverstärker, Säure-Durchschlag, Brand-Katalysator.
+    - 15 neue Formations- und Multicast-Karten: Pentagon, Hexagon, Hinterhalt-Schuss, Schmetterling-Formation.
+
+[ ] (A) [WEAPONS] Meta-Gene & Replikations-Katalysatoren (Noita "Divide By" & Griechische Buchstaben).
+    - Polymerase-Duplikator x2, x3, x4, x10 (multipliziert nachfolgende Gen-Effekte mit Rekursions-Bremse).
+    - Zirkuläre RNA-Schleife (ruft das erste Gen der Kanüle erneut auf).
+    - Ribosomen-Katalysator (feuert zufälliges Gen aus dem Ablagestapel ohne Biomasse-Verbrauch).
+    - Ur-Code Alpha / Omega (kopiert das erste bzw. letzte Gen der Kanüle).
+
+[ ] (B) [WEAPONS] Material-Transmutations-Gene.
+    - Sekret: "Fleisch zu Magensäure" (verwandelt getroffenes Gewebe im Umkreis in Säure).
+    - Sekret: "Blut zu Mutagen" (konvertiert Blutlachen in instabiles Mutagen).
+    - Meer aus Blut / Meer aus Magensäure (erzeugt massive Fluten von Flüssigkeiten).
+    - Midas-Enzym (verwandelt organisches Gewebe bei Berührung in reines Biomasse-Gold).
+
+[ ] (B) [BALANCING] Kanülen-Verhalten, Wrapping und Rekursions-Sicherheitsnetz.
+    - Exakte Nachbildung des Wand-Wrapping-Verhaltens (Deck-Neuaufruf bei ungenutztem Multicast).
+    - Hard-Cap für Projektil-Splits (maximal 250 gleichzeitige Projektile, um Crashs bei extremen Builds zu verhindern).
+    - Automatische Erkennung und Dämpfung von Endlos-Trigger-Schleifen.
+
+# ------------------------------------------------------------------------------
+# MEILENSTEIN 4: VISUELLE PERFEKTION, GLSL-SHADER & PROZEDURALER JUICE
+# ------------------------------------------------------------------------------
+[ ] (A) [RENDER] Hardware-beschleunigte GLSL-Post-Processing-Shader (ModernGL / Pygame Shaders).
+    - Hitzeflimmern über Feuer und Biogas-Flammen (Verzerrungs-Noise-Shader).
+    - Säure-Brechung und ätzende Bildschirmverzerrung bei Kontakt mit Säure.
+    - Chromatische Aberration und Druckwellen-Schockwellenring bei Detonationen.
+    - Viszeraler Vignette- und Pulsier-Effekt bei niedrigen Lebenspunkten.
+
+[ ] (A) [RENDER] Flüssigkeits-Shader & Oberflächenspannung.
+    - Glättung von Pixel-Flüssigkeiten zu zusammenhängenden Flüssigkeitskörpern mit viskosen Menisken.
+    - Lichtreflexionen und Glanzlichter auf Blut- und Säure-Oberflächen.
+
+[ ] (B) [ANIMATION] Prozedurale Tentakel- und Gliedmaßen-Inverse-Kinematik (IK).
+    - Spieler-Symbiot erhält dynamische Greif- und Kriech-Tentakeln, die sich physikalisch an Wänden festhalten.
+    - Feinde (z.B. Parasiten-Spinnen und T-Zellen) mit physikalisch animierten Beinen/Geißeln.
+    - Fresszellen (Makrophagen) verformen sich amöboid organisch durch enge Spalten.
+
+[ ] (B) [ART] Viszerales Skelettierungs- & Decal-System.
+    - Getötete Feinde hinterlassen Knochenskelette, die in Säure zersetzt oder von Explosionen zerschmettert werden können.
+    - Blutspritzer und Schleim färben Gewebewände permanent ein (Decal-Map).
+    - Brandnarben und Rußflecken an verkohltem Gewebe.
+
+[ ] (B) [RENDER] Dynamische 2D-Schattenwürfe (Raymarched 2D Light Shadows).
+    - Biolumineszierende Lichtquellen werfen weiche Schatten hinter Knochen- und Gewebehindernissen.
+
+# ------------------------------------------------------------------------------
+# MEILENSTEIN 5: ADAPTIVER SOUNDTRACK, AUDIO-MIXER & AKUSTIK-FILTER
+# ------------------------------------------------------------------------------
+[ ] (A) [AUDIO] Mehrspuriger, dynamisch adaptiver Bio-Horror-Soundtrack.
+    - Mehrspurige Musik-Layers pro Biom (Ambient-Fläche, Bass-Puls, Perkussion, Noise-Texturen).
+    - Nahtlose, latenzfreie Überblendung: Bei Feindkontakt schalten die treibenden Kampf-Drums automatisch zu.
+    - Eigene musikalische Themen für Bosskämpfe und den Heiligen Berg (Inkubations-Knoten).
+
+[ ] (A) [AUDIO] Dynamische Umwelt-Akustik und Audio-Filter.
+    - Tiefpass-Filter (Muffling) des gesamten Sounds und der Musik, sobald der Symbiot in Flüssigkeiten untertaucht.
+    - Dynamischer Höhlenhall (Reverb), abhängig von der Größe des umgebenden Hohlraums.
+    - Dumpfer Herzschlag-Puls, der bei <25% HP die restliche Audiolandschaft dämpft.
+
+[ ] (B) [AUDIO] 3D-Stereo-Panning & Entfernungsdämpfung.
+    - Räumliche Ortung: Säurezischen, Feindschritte und ferne Explosionen präzise links/rechts im Stereobild verorten.
+    - Lautstärkeabfall mit exponentieller Distanzkurve.
+
+[ ] (B) [AUDIO] Umfassendes Soundeffekt-Arsenal (60+ SFX).
+    - Individuelle Geräusche für jedes Projektil, jeden Material-Aufprall und jede Zersetzung.
+    - Schmatzende Geh- und Kriechgeräusche passend zum Untergrund (Fleisch vs. Knochen vs. Schleim).
+
+# ------------------------------------------------------------------------------
+# MEILENSTEIN 6: PLATTFORM-POLITUR, MENÜS, STEAM & PACKAGING
+# ------------------------------------------------------------------------------
+[ ] (A) [SYSTEM] Mid-Run Quicksave & Crash-Recovery.
+    - Zustand der Welt, Chunks, Spieler, Inventar und Feinde bei Beenden oder Absturz nahtlos serialisieren (JSON/Binär).
+    - Fortsetzen des Runs an exakt derselben Stelle beim Spielstart.
+    - Permadeath-Löschung des Savegames beim tatsächlichen Tod.
+
+[ ] (A) [UI/UX] Vollständiges Einstellungs- und Konfigurationsmenü.
+    - Tastenbelegung: Komplett freies Remapping aller Tastatur- und Maus-Aktionen.
+    - Gamepad-Konfiguration: Deadzone-Kalibrierung, Belegung, Stick-Empfindlichkeit, Invertierung.
+    - Grafik-Optionen: Auflösungsauswahl (Fenster/Vollbild/Borderless), V-Sync, Screen-Shake-Slider (0-100%), Partikeldichte-Regler.
+    - Audio-Optionen: Getrennte Lautstärkeregler für Master, Musik, SFX und Umgebungsgeräusche.
+
+[ ] (B) [UI/UX] Barrierefreiheit & Lokalisierung (i18n).
+    - Umschalter für Blitzlicht-Effekte (Photosensitivität).
+    - Skalierbare HUD- und Schriftgröße für Monitore von 1080p bis 4K.
+    - Mehrsprachiges Übersetzungssystem (initial Deutsch und Englisch für alle Texte, Tooltips und Beschreibungen).
+
+[ ] (B) [PLATFORM] Steamworks-Integration.
+    - 40+ Steam Achievements (z.B. "Erste Zersetzung", "Meister-Alchemist", "Wirts-Kollaps", "Ohne Schaden durch die Kavernen").
+    - Steam Cloud Save für den Bio-Kodex und Metaprogress.
+    - Volle Steam Deck Verifizierung (Gamepad-Layout, Textgröße, 60 FPS Target).
+
+[ ] (B) [MODDING] Lua- / Python-Modding-Schnittstelle.
+    - Lade-Ordner für Community-Mods (`mods/`).
+    - API-Hooks zum Registrieren neuer Gene, Materialien, Biome, Feinde und Custom-Stämme.
+
+[ ] (A) [PACKAGING] Standalone Single-File Release-Build (.exe).
+    - Kompilierung via Nuitka / PyInstaller zu einer einzigen, performanten `.exe` ohne Python-Voraussetzung.
+    - Automatisierte Build-Pipeline für Windows 64-Bit.
+    - Null Abhängigkeiten für den Endbenutzer: Doppelklick und das Spiel läuft out-of-the-box.
