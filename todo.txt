@@ -65,11 +65,12 @@
 # ------------------------------------------------------------------------------
 # MEILENSTEIN 3: GEN-ARSENAL (120+ GENE) & DEEP WAND-DECKBUILDING
 # ------------------------------------------------------------------------------
-[ ] (A) [WEAPONS] Erweiterung des Gen-Katalogs auf 120+ einzigartige Karten.
+[x] (A) [WEAPONS] Erweiterung des Gen-Katalogs auf 120+ einzigartige Karten.
     - 40 neue Projektile: u.a. Knorpel-Schrot, Plasma-Tendril, Zytokin-Laser, Sporen-Mine, Knochen-Bumerang, Schleim-Kugel.
     - 25 neue Trigger & Timer: Kollisions-Trigger, Timer-Split, Todes-Burst, Proximity-Trigger, Treffer-Rückkehrer.
     - 30 neue Modifikatoren: Spiral-Umlaufbahn, Chaotische Trajektorie, Schwerelosigkeit, Magnetische Anziehung, Blut-Schadensverstärker, Säure-Durchschlag, Brand-Katalysator.
     - 15 neue Formations- und Multicast-Karten: Pentagon, Hexagon, Hinterhalt-Schuss, Schmetterling-Formation.
+
 
 [ ] (A) [WEAPONS] Meta-Gene & Replikations-Katalysatoren (Noita "Divide By" & Griechische Buchstaben).
     - Polymerase-Duplikator x2, x3, x4, x10 (multipliziert nachfolgende Gen-Effekte mit Rekursions-Bremse).

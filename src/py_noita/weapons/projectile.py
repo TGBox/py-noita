@@ -44,6 +44,17 @@ class Projectile:
         explosion_radius: int = 0,
         payload_genes: Optional[List] = None,
         owner: str = "PLAYER",
+        trigger_type: str = "NONE",
+        proximity_radius: float = 0.0,
+        penetration_trigger: bool = False,
+        pattern: str = "NORMAL",
+        bounce: int = 0,
+        vampiric: bool = False,
+        gravity: float = 0.0,
+        slow_effect: bool = False,
+        shooter: Optional[Any] = None,
+        orbit_dist: float = 35.0,
+        orbit_angle: float = 0.0,
     ):
         self.x = x
         self.y = y
@@ -63,6 +74,22 @@ class Projectile:
         self.owner = owner
         self.alive: bool = True
 
+        self.trigger_type = trigger_type
+        self.proximity_radius = proximity_radius
+        self.penetration_trigger = penetration_trigger
+        self.pattern = pattern
+        self.bounce = bounce
+        self.vampiric = vampiric
+        self.gravity = gravity
+        self.slow_effect = slow_effect
+        self.shooter = shooter
+        self.orbit_dist = orbit_dist
+        self.orbit_angle = orbit_angle
+        self.initial_lifetime = lifetime
+        self.initial_vx = vx
+        self.initial_vy = vy
+        self.anim_time: float = 0.0
+
         # Penetration health for piercing
         self.pierce_health = 3 if piercing else 0
 
@@ -77,10 +104,45 @@ class Projectile:
         if not self.alive:
             return []
 
+        self.anim_time += 1.0
         self.lifetime -= 1
         if self.lifetime <= 0:
             self.alive = False
             return self._trigger_payload(self.x, self.y)
+
+        # Gravity effect
+        if self.gravity != 0.0:
+            self.vy += self.gravity
+
+        # Proximity Trigger check
+        if self.proximity_radius > 0.0 and targets:
+            for t in targets:
+                if getattr(t, "alive", False):
+                    p_dist = math.hypot(self.x - t.center_x, self.y - t.center_y)
+                    if p_dist <= self.proximity_radius:
+                        self.alive = False
+                        return self._trigger_payload(self.x, self.y)
+
+        # Movement patterns: Boomerang, Helix, Orbital
+        if self.pattern == "BOOMERANG":
+            if self.lifetime < self.initial_lifetime * 0.65:
+                speed = math.hypot(self.initial_vx, self.initial_vy)
+                if speed > 0.01:
+                    self.vx -= (self.initial_vx / speed) * 0.45
+                    self.vy -= (self.initial_vy / speed) * 0.45
+        elif self.pattern in ("HELIX_A", "HELIX_B"):
+            cur_speed = math.hypot(self.vx, self.vy)
+            if cur_speed > 0.01:
+                cur_ang = math.atan2(self.vy, self.vx)
+                perp_ang = cur_ang + math.pi / 2.0
+                sign = 1.0 if self.pattern == "HELIX_A" else -1.0
+                wave_v = math.cos(self.anim_time * 0.3) * 2.0 * sign
+                self.x += math.cos(perp_ang) * wave_v
+                self.y += math.sin(perp_ang) * wave_v
+        elif self.pattern == "ORBIT" and self.shooter is not None:
+            self.orbit_angle += 0.09
+            self.x = self.shooter.center_x + math.cos(self.orbit_angle) * self.orbit_dist
+            self.y = self.shooter.center_y + math.sin(self.orbit_angle) * self.orbit_dist
 
         # Homing towards nearest target
         if self.homing and targets:
@@ -130,6 +192,14 @@ class Projectile:
                         dist = math.hypot(nx - target.center_x, ny - target.center_y)
                         if dist <= self.radius + target.width / 2.0:
                             target.take_damage(self.damage, "PROJECTILE")
+                            if self.vampiric and self.owner == "PLAYER" and self.shooter is not None:
+                                if hasattr(self.shooter, "hp") and hasattr(self.shooter, "max_hp"):
+                                    self.shooter.hp = min(self.shooter.max_hp, self.shooter.hp + 1.0)
+                            if self.slow_effect:
+                                if hasattr(target, "vx"):
+                                    target.vx *= 0.5
+                                if hasattr(target, "vy"):
+                                    target.vy *= 0.5
                             spawned_children.extend(self._trigger_payload(nx, ny))
                             self._handle_impact(grid, int(nx), int(ny))
                             if not self.piercing or self.pierce_health <= 0:
@@ -171,6 +241,17 @@ class Projectile:
             if 0 <= ix < grid.width and 0 <= iy < grid.height:
                 if grid.is_solid(ix, iy):
                     # Solid impact!
+                    if self.bounce > 0:
+                        self.bounce -= 1
+                        self.vx = -self.vx * 0.85
+                        self.vy = -self.vy * 0.85
+                        self.x += self.vx
+                        self.y += self.vy
+                        self._handle_impact(grid, ix, iy)
+                        if self.penetration_trigger:
+                            spawned_children.extend(self._trigger_payload(nx, ny))
+                        continue
+
                     self._handle_impact(grid, ix, iy)
                     spawned_children.extend(self._trigger_payload(nx, ny))
 
@@ -185,6 +266,7 @@ class Projectile:
             self.y = ny
 
         return spawned_children
+
 
     def _handle_impact(self, grid: SimulationGrid, ix: int, iy: int) -> None:
         """Handle impact effects (crater, acid spray, explosion)."""

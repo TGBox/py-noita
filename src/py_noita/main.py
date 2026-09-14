@@ -524,7 +524,9 @@ class Game:
                     self.player.center_y,
                     self.player.aim_angle,
                     owner="PLAYER",
+                    shooter=self.player,
                 )
+
                 if new_projs:
                     # Apply perk damage multipliers
                     for p in new_projs:
