@@ -80,11 +80,19 @@ class SimulationGrid:
             return True
         return False
 
+    def set_material(self, x: int, y: int, mat: int, life_val: int = 0) -> bool:
+        """Alias for set_pixel."""
+        return self.set_pixel(x, y, mat, life_val)
+
     def get_pixel(self, x: int, y: int) -> int:
         """Get pixel material ID with safe boundary return."""
         if 0 <= x < self.width and 0 <= y < self.height:
             return int(self.grid[y, x])
         return MAT_WALL_BONE
+
+    def get_material(self, x: int, y: int) -> int:
+        """Alias for get_pixel."""
+        return self.get_pixel(x, y)
 
     def is_solid(self, x: int, y: int) -> bool:
         """Check if cell is solid terrain."""

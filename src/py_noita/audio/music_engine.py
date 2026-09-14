@@ -208,8 +208,8 @@ class AdaptiveMusicEngine:
         """Set combat intensity (0.0 to 1.0) to dynamically ramp drums."""
         self.combat_intensity = max(0.0, min(1.0, intensity))
 
-    def update(self, dt: float) -> None:
-        """Smoothly interpolate track volumes based on combat and location."""
+    def update(self, dt: float, acoustic_modifiers: Optional[Tuple[float, float, float, float, float]] = None) -> None:
+        """Smoothly interpolate track volumes based on combat and environmental acoustics."""
         if not self.initialized:
             return
 
@@ -227,22 +227,26 @@ class AdaptiveMusicEngine:
         self.vol_drums += (target_drums - self.vol_drums) * min(1.0, dt * drum_fade_speed)
         self.vol_texture += (target_texture - self.vol_texture) * min(1.0, dt * 2.0)
 
-        self._update_channel_volumes()
+        self._update_channel_volumes(acoustic_modifiers)
 
-    def _update_channel_volumes(self) -> None:
-        """Apply computed volumes to the dedicated Pygame mixer channels."""
+    def _update_channel_volumes(self, acoustic_modifiers: Optional[Tuple[float, float, float, float, float]] = None) -> None:
+        """Apply computed volumes to the dedicated Pygame mixer channels with acoustic filtering."""
         if not self.initialized:
             return
 
-        master = self.master_music_volume
+        amb_mod, bass_mod, drums_mod, tex_mod, ducking = (
+            acoustic_modifiers if acoustic_modifiers is not None else (1.0, 1.0, 1.0, 1.0, 1.0)
+        )
+        master = self.master_music_volume * ducking
+
         if self.channels["ambient"]:
-            self.channels["ambient"].set_volume(self.vol_ambient * master)
+            self.channels["ambient"].set_volume(max(0.0, min(1.0, self.vol_ambient * amb_mod * master)))
         if self.channels["bass"]:
-            self.channels["bass"].set_volume(self.vol_bass * master)
+            self.channels["bass"].set_volume(max(0.0, min(1.0, self.vol_bass * bass_mod * master)))
         if self.channels["drums"]:
-            self.channels["drums"].set_volume(self.vol_drums * master)
+            self.channels["drums"].set_volume(max(0.0, min(1.0, self.vol_drums * drums_mod * master)))
         if self.channels["texture"]:
-            self.channels["texture"].set_volume(self.vol_texture * master)
+            self.channels["texture"].set_volume(max(0.0, min(1.0, self.vol_texture * tex_mod * master)))
 
     def stop_all(self) -> None:
         """Stop all music playback."""

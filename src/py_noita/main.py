@@ -712,7 +712,7 @@ class Game:
                             break
             self.audio.music.set_combat_intensity(1.0 if in_combat else 0.0)
 
-        self.audio.update(dt)
+        self.audio.update(dt, player=self.player, grid=self.grid)
 
         # 9b. Update Shader Post-Processing Effects (heat shimmer, acid refraction, shockwaves, low HP pulse)
         if hasattr(self.grid, "pending_explosions"):
@@ -808,7 +808,7 @@ class Game:
         self.camera.update(self.player.center_x, self.player.center_y)
         self.physics_world.update(dt, cam_x, cam_y, self.renderer.view_w, self.renderer.view_h)
         self.particles.update(self.grid)
-        self.audio.update(dt)
+        self.audio.update(dt, player=self.player, grid=self.grid)
 
     def _update_tuning(self, events) -> None:
         """Handle organ-tuning deckbuilder GUI."""

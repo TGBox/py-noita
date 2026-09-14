@@ -124,7 +124,7 @@
     - Nahtlose, latenzfreie Überblendung: Bei Feindkontakt schalten die treibenden Kampf-Drums automatisch zu.
     - Eigene musikalische Themen für Bosskämpfe und den Heiligen Berg (Inkubations-Knoten).
 
-[ ] (A) [AUDIO] Dynamische Umwelt-Akustik und Audio-Filter.
+[x] (A) [AUDIO] Dynamische Umwelt-Akustik und Audio-Filter.
     - Tiefpass-Filter (Muffling) des gesamten Sounds und der Musik, sobald der Symbiot in Flüssigkeiten untertaucht.
     - Dynamischer Höhlenhall (Reverb), abhängig von der Größe des umgebenden Hohlraums.
     - Dumpfer Herzschlag-Puls, der bei <25% HP die restliche Audiolandschaft dämpft.
