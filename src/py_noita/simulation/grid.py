@@ -46,6 +46,7 @@ class SimulationGrid:
         self.frame_count: int = 0
         self.total_moved: int = 0
         self.physics_world: Optional[Any] = None
+        self.pending_explosions: List[Tuple[float, float, float]] = []
 
         # Border walls (unbreakable bone boundaries)
         self.init_boundaries()

@@ -93,7 +93,7 @@
 # ------------------------------------------------------------------------------
 # MEILENSTEIN 4: VISUELLE PERFEKTION, GLSL-SHADER & PROZEDURALER JUICE
 # ------------------------------------------------------------------------------
-[ ] (A) [RENDER] Hardware-beschleunigte GLSL-Post-Processing-Shader (ModernGL / Pygame Shaders).
+[x] (A) [RENDER] Hardware-beschleunigte GLSL-Post-Processing-Shader (ModernGL / Pygame Shaders).
     - Hitzeflimmern über Feuer und Biogas-Flammen (Verzerrungs-Noise-Shader).
     - Säure-Brechung und ätzende Bildschirmverzerrung bei Kontakt mit Säure.
     - Chromatische Aberration und Druckwellen-Schockwellenring bei Detonationen.

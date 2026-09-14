@@ -71,6 +71,9 @@ def create_explosion(
     if pw is not None:
         pw.apply_explosion(float(cx), float(cy), float(radius), float(power))
 
+    if hasattr(grid, "pending_explosions"):
+        grid.pending_explosions.append((float(cx), float(cy), float(power)))
+
     damaged_cells = 0
     debris_list: List[ExplosionDebris] = []
     r_sq = radius * radius

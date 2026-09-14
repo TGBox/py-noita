@@ -682,6 +682,17 @@ class Game:
         self.particles.update(self.grid)
         self.audio.update(dt)
 
+        # 9b. Update Shader Post-Processing Effects (heat shimmer, acid refraction, shockwaves, low HP pulse)
+        if hasattr(self.grid, "pending_explosions"):
+            for ex_x, ex_y, ex_power in self.grid.pending_explosions:
+                self.renderer.post_processor.trigger_detonation(ex_x, ex_y, cam_x, cam_y, ex_power)
+            self.grid.pending_explosions.clear()
+
+        heat_val = 0.8 if self.player.on_fire else (0.3 if self.player.fire_timer > 0 else 0.0)
+        acid_val = min(1.0, self.player.acid_burn_timer / 45.0) if self.player.acid_burn_timer > 0 else 0.0
+        hp_ratio = self.player.hp / max(1.0, self.player.max_hp)
+        self.renderer.post_processor.update(dt, heat_val=heat_val, acid_val=acid_val, player_hp_ratio=hp_ratio)
+
         # 10. Check Player Death
         if not self.player.alive:
             self.earned_mutagen = self.codex.record_run(

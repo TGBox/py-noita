@@ -14,6 +14,7 @@ from py_noita.config import (
     VIEWPORT_SIM_WIDTH_16_9,
     VIEWPORT_SIM_WIDTH_21_9,
 )
+from py_noita.rendering.shaders import ShaderPostProcessor
 from py_noita.simulation.materials import LUT_COLORS, MAT_AIR, PROP_GLOW
 
 
@@ -91,6 +92,9 @@ class Renderer:
         self.dest_rect = pygame.Rect(0, 0, screen_res[0], screen_res[1])
         self.update_dest_rect(screen_res)
 
+        # GLSL & VFX Shader Post-Processor
+        self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
+
     def set_resolution(self, screen_res: Tuple[int, int]) -> None:
         """Switch between 1920x1080 (16:9), 2560x1080 (21:9 Ultrawide), or custom."""
         self.screen_res = screen_res
@@ -101,6 +105,7 @@ class Renderer:
         self.sim_surface = pygame.Surface((self.view_w, self.view_h))
         self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)
         self.update_dest_rect(screen_res)
+        self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
 
     def update_dest_rect(self, screen_res: Tuple[int, int]) -> None:
         """Calculate scaled destination rectangle preserving pixel aspect ratio."""
@@ -138,10 +143,12 @@ class Renderer:
         pygame.surfarray.blit_array(self.sim_surface, self.surfarray_buffer)
 
     def present(self, screen: pygame.Surface) -> None:
-        """Scale internal simulation surface up to the display window."""
+        """Scale internal simulation surface up to the display window with shader post-processing."""
+        render_surf = self.post_processor.apply_post_processing(self.sim_surface)
+
         if self.dest_rect.size == self.screen_res:
-            pygame.transform.scale(self.sim_surface, self.screen_res, screen)
+            pygame.transform.scale(render_surf, self.screen_res, screen)
         else:
             screen.fill((0, 0, 0))  # Clear black bars
-            scaled = pygame.transform.scale(self.sim_surface, (self.dest_rect.width, self.dest_rect.height))
+            scaled = pygame.transform.scale(render_surf, (self.dest_rect.width, self.dest_rect.height))
             screen.blit(scaled, self.dest_rect.topleft)
