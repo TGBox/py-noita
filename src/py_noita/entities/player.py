@@ -24,6 +24,7 @@ from py_noita.simulation.materials import (
     MAT_AIR,
     MAT_BLOOD,
     MAT_FIRE,
+    MAT_GOLD,
     MAT_LYMPH,
     MAT_MUTAGEN,
     MAT_WATER,
@@ -226,6 +227,10 @@ class Player:
                     self.on_fire = False
                     self.fire_timer = 0
                     self.acid_burn_timer = 0
+                # Biomass-Gold collection
+                elif mat == MAT_GOLD:
+                    self.biomass_currency += 1
+                    grid.set_pixel(cx + dx, cy + dy, MAT_AIR)
 
         # Status effect ticks
         if self.on_fire:

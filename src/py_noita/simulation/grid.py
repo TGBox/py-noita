@@ -1,7 +1,7 @@
 """Simulation Grid Manager for Py-Noita."""
 
 import math
-from typing import Any, Optional, Set, Tuple
+from typing import Any, List, Optional, Set, Tuple
 import numpy as np
 
 from py_noita.config import CHUNK_SIZE, WORLD_HEIGHT, WORLD_WIDTH
@@ -161,7 +161,41 @@ class SimulationGrid:
         self.mark_dirty(cx, cy, radius + 2)
         return placed
 
+    def transmute_circle(self, cx: int, cy: int, radius: int, source_mats: Optional[List[int]], target_mat: int) -> int:
+        """Convert pixels within circle radius into target_mat.
+        If source_mats is None, converts any material except MAT_AIR and MAT_WALL_BONE.
+        If source_mats is provided, converts any material in source_mats (except MAT_WALL_BONE).
+        """
+        modified = 0
+        r_sq = radius * radius
+        x0 = max(1, cx - radius)
+        x1 = min(self.width - 2, cx + radius)
+        y0 = max(1, cy - radius)
+        y1 = min(self.height - 2, cy + radius)
+
+        for y in range(y0, y1 + 1):
+            dy_sq = (y - cy) * (y - cy)
+            for x in range(x0, x1 + 1):
+                if (x - cx) * (x - cx) + dy_sq <= r_sq:
+                    cur = self.grid[y, x]
+                    if cur == MAT_WALL_BONE:
+                        continue
+                    if source_mats is None:
+                        if cur != MAT_AIR and cur != target_mat:
+                            self.grid[y, x] = target_mat
+                            self.life[y, x] = PROP_LIFETIME[target_mat]
+                            modified += 1
+                    else:
+                        if cur in source_mats and cur != target_mat:
+                            self.grid[y, x] = target_mat
+                            self.life[y, x] = PROP_LIFETIME[target_mat]
+                            modified += 1
+
+        self.mark_dirty(cx, cy, radius + 2)
+        return modified
+
     def sample_and_consume_liquid(self, x: int, y: int, radius: int = 4) -> Optional[int]:
+
         """Suck up a liquid pixel from around (x, y) into player gland. Returns material ID."""
         for dy in range(-radius, radius + 1):
             for dx in range(-radius, radius + 1):

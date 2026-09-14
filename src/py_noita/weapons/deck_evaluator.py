@@ -33,6 +33,9 @@ class CastState:
         self.explosion_radius: int = 0
         self.formation_type: str = "NONE"
         self.pattern: str = "NORMAL"
+        self.transmute_source: Optional[List[int]] = None
+        self.transmute_target: int = MAT_AIR
+        self.transmute_radius: int = 0
 
     def apply_modifier(self, gene: Gene) -> None:
         """Apply a modifier gene to this cast state."""
@@ -66,6 +69,10 @@ class CastState:
             self.impact_mat_count += gene.impact_material_count
         if gene.explosion_radius > 0:
             self.explosion_radius = max(self.explosion_radius, gene.explosion_radius)
+        if getattr(gene, "transmute_radius", 0) > 0 and getattr(gene, "transmute_target", MAT_AIR) != MAT_AIR:
+            self.transmute_source = gene.transmute_source
+            self.transmute_target = gene.transmute_target
+            self.transmute_radius = max(self.transmute_radius, gene.transmute_radius)
 
 
 def evaluate_cannula_fire(
@@ -389,6 +396,10 @@ def _create_projectile(
     prox_rad = getattr(gene, "proximity_radius", 0.0)
     pen_trig = (trig_type == "PENETRATION")
 
+    trans_target = state.transmute_target if state.transmute_target != MAT_AIR else getattr(gene, "transmute_target", MAT_AIR)
+    trans_source = state.transmute_source if state.transmute_source is not None else getattr(gene, "transmute_source", None)
+    trans_rad = max(state.transmute_radius, getattr(gene, "transmute_radius", 0))
+
     return Projectile(
         x=x,
         y=y,
@@ -416,6 +427,9 @@ def _create_projectile(
         slow_effect=slow,
         shooter=shooter,
         orbit_angle=orbit_angle,
+        transmute_source=trans_source,
+        transmute_target=trans_target,
+        transmute_radius=trans_rad,
     )
 
 

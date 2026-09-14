@@ -15,11 +15,14 @@ from py_noita.simulation.materials import (
     MAT_BONE_CHIP,
     MAT_CHITIN,
     MAT_FIRE,
+    MAT_GOLD,
     MAT_LYMPH,
     MAT_MUTAGEN,
     MAT_NERVE,
     MAT_PUS,
     MAT_SPORES,
+    MAT_TENTACLE_FLESH,
+    MAT_TISSUE,
 )
 
 
@@ -73,6 +76,10 @@ class Gene:
     meta_type: str = "NONE"          # "NONE", "DIVIDE_2", "DIVIDE_3", "DIVIDE_4", "DIVIDE_10", "LOOP_FIRST", "RANDOM_DISCARD", "COPY_FIRST", "COPY_LAST"
     meta_multiplier: int = 1
 
+    # Transmutation properties
+    transmute_source: Optional[List[int]] = None
+    transmute_target: int = MAT_AIR
+    transmute_radius: int = 0
 
     # Multicast count (for MULTICAST types)
     multicast_count: int = 1
@@ -1835,6 +1842,90 @@ GENE_LIBRARY: List[Gene] = [
         cast_delay_mod=0.02,
         meta_type="COPY_LAST",
         color=(240, 80, 255),
+    ),
+    # =========================================================================
+    # 6. MATERIAL-TRANSMUTATION-GENE (5 Cards)
+    # =========================================================================
+    Gene(
+        id="TRANSMUTE_FLESH_TO_ACID",
+        name="Sekret: Fleisch zu Magensäure",
+        gene_type=GeneType.MODIFIER,
+        description="Wandelt bei Aufprall organisches Gewebe und Fett im Umkreis in ätzende Magensäure um.",
+        biomass_cost=15.0,
+        cast_delay_mod=0.05,
+        transmute_source=[MAT_TISSUE, MAT_TENTACLE_FLESH, MAT_NERVE],
+        transmute_target=MAT_ACID,
+        transmute_radius=12,
+        color=(120, 240, 60),
+    ),
+    Gene(
+        id="TRANSMUTE_BLOOD_TO_MUTAGEN",
+        name="Sekret: Blut zu Mutagen",
+        gene_type=GeneType.MODIFIER,
+        description="Konvertiert bei Projektilaufprall flüssige Blutlachen im Umkreis in hochreaktives Mutagen.",
+        biomass_cost=20.0,
+        cast_delay_mod=0.06,
+        transmute_source=[MAT_BLOOD],
+        transmute_target=MAT_MUTAGEN,
+        transmute_radius=14,
+        color=(180, 50, 220),
+    ),
+    Gene(
+        id="SEA_OF_BLOOD",
+        name="Meer aus Blut",
+        gene_type=GeneType.PROJECTILE,
+        description="Erzeugt eine gewaltige Flutwelle aus frischem Wirtsblut, die Kavernen überschwemmt.",
+        biomass_cost=45.0,
+        cast_delay_mod=0.25,
+        recharge_mod=0.35,
+        speed=4.5,
+        damage=5.0,
+        lifetime=80,
+        radius=4.0,
+        transmute_source=[MAT_AIR],
+        transmute_target=MAT_BLOOD,
+        transmute_radius=20,
+        impact_material=MAT_BLOOD,
+        impact_material_count=20,
+        color=(180, 10, 20),
+    ),
+    Gene(
+        id="SEA_OF_ACID",
+        name="Meer aus Magensäure",
+        gene_type=GeneType.PROJECTILE,
+        description="Beschwört eine verheerende Flut aus reinem Magensaft, die alles zersetzt.",
+        biomass_cost=60.0,
+        cast_delay_mod=0.30,
+        recharge_mod=0.50,
+        speed=4.0,
+        damage=25.0,
+        lifetime=75,
+        radius=4.0,
+        transmute_source=[MAT_AIR],
+        transmute_target=MAT_ACID,
+        transmute_radius=18,
+        impact_material=MAT_ACID,
+        impact_material_count=20,
+        color=(80, 220, 20),
+    ),
+    Gene(
+        id="MIDAS_ENZYME",
+        name="Midas-Enzym",
+        gene_type=GeneType.PROJECTILE,
+        description="Das verbotene alchemistische Katalysator-Gen: Verwandelt jedes berührte organische Gewebe und Flüssigkeiten in reines Biomasse-Gold.",
+        biomass_cost=80.0,
+        cast_delay_mod=0.40,
+        recharge_mod=0.60,
+        speed=3.5,
+        damage=200.0,
+        lifetime=60,
+        radius=3.5,
+        transmute_source=None,
+        transmute_target=MAT_GOLD,
+        transmute_radius=16,
+        impact_material=MAT_GOLD,
+        impact_material_count=15,
+        color=(255, 215, 0),
     ),
 ]
 

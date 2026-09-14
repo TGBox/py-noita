@@ -26,6 +26,8 @@ MAT_SPORES = 10
 MAT_EGGS = 11
 MAT_ASH = 12
 MAT_BONE_CHIP = 13
+MAT_GOLD = 14
+
 
 MAT_BLOOD = 20
 MAT_ACID = 21
@@ -94,7 +96,11 @@ MATERIAL_COLORS: Dict[int, List[Tuple[int, int, int]]] = {
     MAT_BONE_CHIP: [
         (220, 215, 195), (200, 195, 175), (235, 230, 210)
     ],
+    MAT_GOLD: [
+        (255, 215, 0), (240, 195, 20), (255, 235, 50), (220, 175, 10)
+    ],
     MAT_BLOOD: [
+
         (170, 12, 24), (195, 18, 30), (145, 8, 18), (215, 25, 38)
     ],
     MAT_ACID: [
@@ -167,8 +173,14 @@ def _init_property_tables() -> None:
     PROP_GLOW[MAT_TENTACLE_FLESH] = 80
 
     # Powders
-    for mat in (MAT_SPORES, MAT_EGGS, MAT_ASH, MAT_BONE_CHIP):
+    for mat in (MAT_SPORES, MAT_EGGS, MAT_ASH, MAT_BONE_CHIP, MAT_GOLD):
         PROP_STATE[mat] = STATE_POWDER
+
+    PROP_DENSITY[MAT_GOLD] = 9.0
+    PROP_FLAMMABILITY[MAT_GOLD] = 0
+    PROP_ACID_VULN[MAT_GOLD] = 0
+    PROP_GLOW[MAT_GOLD] = 120
+
 
     PROP_DENSITY[MAT_SPORES] = 1.2
     PROP_FLAMMABILITY[MAT_SPORES] = 90
@@ -261,7 +273,9 @@ MATERIAL_NAMES: Dict[int, str] = {
     MAT_EGGS: "Parasiteneier",
     MAT_ASH: "Asche",
     MAT_BONE_CHIP: "Knochensplitter",
+    MAT_GOLD: "Biomasse-Gold",
     MAT_BLOOD: "Blut",
+
     MAT_ACID: "Säure",
     MAT_BILE: "Galle",
     MAT_LYMPH: "Lymphe",

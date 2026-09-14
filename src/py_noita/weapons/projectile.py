@@ -55,6 +55,9 @@ class Projectile:
         shooter: Optional[Any] = None,
         orbit_dist: float = 35.0,
         orbit_angle: float = 0.0,
+        transmute_source: Optional[List[int]] = None,
+        transmute_target: int = MAT_AIR,
+        transmute_radius: int = 0,
     ):
         self.x = x
         self.y = y
@@ -73,6 +76,9 @@ class Projectile:
         self.payload_genes = payload_genes or []
         self.owner = owner
         self.alive: bool = True
+        self.transmute_source = transmute_source
+        self.transmute_target = transmute_target
+        self.transmute_radius = transmute_radius
 
         self.trigger_type = trigger_type
         self.proximity_radius = proximity_radius
@@ -108,6 +114,8 @@ class Projectile:
         self.lifetime -= 1
         if self.lifetime <= 0:
             self.alive = False
+            if self.transmute_radius > 0:
+                self._handle_impact(grid, int(self.x), int(self.y))
             return self._trigger_payload(self.x, self.y)
 
         # Gravity effect
@@ -269,12 +277,16 @@ class Projectile:
 
 
     def _handle_impact(self, grid: SimulationGrid, ix: int, iy: int) -> None:
-        """Handle impact effects (crater, acid spray, explosion)."""
+        """Handle impact effects (crater, acid spray, explosion, transmutation)."""
         if self.explosion_radius > 0:
             create_explosion(grid, ix, iy, radius=self.explosion_radius, power=self.damage)
         else:
             # Small impact dent
             grid.carve_circle(ix, iy, max(1, int(self.radius)), MAT_AIR)
+
+        # Material Transmutation effect (if configured)
+        if self.transmute_radius > 0 and self.transmute_target != MAT_AIR:
+            grid.transmute_circle(ix, iy, self.transmute_radius, self.transmute_source, self.transmute_target)
 
         # Spray impact material (e.g. Acid, Blood, Mutagen, Fire)
         if self.impact_material != MAT_AIR and self.impact_material_count > 0:

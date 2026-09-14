@@ -79,7 +79,7 @@
     - Ur-Code Alpha / Omega (kopiert das erste bzw. letzte Gen der Kanüle).
 
 
-[ ] (B) [WEAPONS] Material-Transmutations-Gene.
+[x] (B) [WEAPONS] Material-Transmutations-Gene.
     - Sekret: "Fleisch zu Magensäure" (verwandelt getroffenes Gewebe im Umkreis in Säure).
     - Sekret: "Blut zu Mutagen" (konvertiert Blutlachen in instabiles Mutagen).
     - Meer aus Blut / Meer aus Magensäure (erzeugt massive Fluten von Flüssigkeiten).
