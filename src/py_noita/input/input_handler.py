@@ -15,6 +15,9 @@ class InputState:
         self.aim_world_x: float = 0.0
         self.aim_world_y: float = 0.0
         self.aim_angle: float = 0.0
+        self.sim_mouse_x: int = 0
+        self.sim_mouse_y: int = 0
+        self.mouse_in_bounds: bool = False
 
         self.fire_primary: bool = False       # Fire cannula
         self.fire_secondary: bool = False     # Spray liquid gland
@@ -81,6 +84,9 @@ class InputHandler:
             state.aim_world_x = cam_x + sim_x
             state.aim_world_y = cam_y + sim_y
             state.aim_angle = math.atan2(state.aim_world_y - player_cy, state.aim_world_x - player_cx)
+            state.sim_mouse_x = int(sim_x)
+            state.sim_mouse_y = int(sim_y)
+            state.mouse_in_bounds = (0.0 <= rel_x <= 1.0 and 0.0 <= rel_y <= 1.0)
 
         # Mouse buttons
         mouse_buttons = pygame.mouse.get_pressed()
@@ -132,6 +138,9 @@ class InputHandler:
                 state.aim_angle = math.atan2(ry, rx)
                 state.aim_world_x = player_cx + math.cos(state.aim_angle) * 80.0
                 state.aim_world_y = player_cy + math.sin(state.aim_angle) * 80.0
+                state.sim_mouse_x = int(round(state.aim_world_x - cam_x))
+                state.sim_mouse_y = int(round(state.aim_world_y - cam_y))
+                state.mouse_in_bounds = (0 <= state.sim_mouse_x < sim_view_w and 0 <= state.sim_mouse_y < sim_view_h)
 
             # Triggers (Right Trigger = Fire, Left Trigger = Spray)
             # Typically axis 4 or 5

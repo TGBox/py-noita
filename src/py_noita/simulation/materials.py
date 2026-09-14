@@ -247,3 +247,53 @@ def _init_property_tables() -> None:
 
 
 _init_property_tables()
+
+# German display names for materials and fluids
+MATERIAL_NAMES: Dict[int, str] = {
+    MAT_AIR: "",
+    MAT_TISSUE: "Gewebe",
+    MAT_BONE: "Knochen",
+    MAT_CHITIN: "Chitin",
+    MAT_WALL_BONE: "Dichter Knochen",
+    MAT_NERVE: "Nervengewebe",
+    MAT_TENTACLE_FLESH: "Tentakelfleisch",
+    MAT_SPORES: "Sporen",
+    MAT_EGGS: "Parasiteneier",
+    MAT_ASH: "Asche",
+    MAT_BONE_CHIP: "Knochensplitter",
+    MAT_BLOOD: "Blut",
+    MAT_ACID: "Säure",
+    MAT_BILE: "Galle",
+    MAT_LYMPH: "Lymphe",
+    MAT_PUS: "Eiter",
+    MAT_MUTAGEN: "Mutagen",
+    MAT_WATER: "Wasser",
+    MAT_BIOGAS: "Biogas",
+    MAT_TOXIC_VAPOR: "Giftiger Dampf",
+    MAT_SMOKE: "Rauch",
+    MAT_FIRE: "Feuer",
+    MAT_CORROSION: "Korrosion",
+}
+
+# German state of matter labels
+STATE_NAMES: Dict[int, str] = {
+    STATE_EMPTY: "Vakuum",
+    STATE_SOLID: "Feststoff",
+    STATE_POWDER: "Pulver",
+    STATE_LIQUID: "Flüssigkeit",
+    STATE_GAS: "Gas",
+    STATE_ENERGY: "Energie",
+}
+
+
+def get_material_name(mat_id: int) -> str:
+    """Return German display name of material, or fallback string."""
+    return MATERIAL_NAMES.get(mat_id, f"Material {mat_id}")
+
+
+def get_material_category(mat_id: int) -> str:
+    """Return state of matter category name."""
+    if 0 <= mat_id < MAX_MATERIALS:
+        state = PROP_STATE[mat_id]
+        return STATE_NAMES.get(int(state), "")
+    return ""

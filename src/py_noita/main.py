@@ -1,5 +1,6 @@
 """Py-Noita: Bio-Horror Mikrokosmos Pixel Physics Roguelite - Main Game Engine."""
 
+from typing import Any
 import math
 import os
 import random
@@ -45,6 +46,7 @@ from py_noita.simulation.materials import (
 from py_noita.ui.cannula_editor import CannulaEditor
 from py_noita.ui.codex import ALL_STRAINS, BioCodex
 from py_noita.ui.game_over import GameOverScreen
+from py_noita.ui.hover_info import get_hover_target
 from py_noita.ui.hud import HUD
 from py_noita.weapons.cannula import OrganCannula
 from py_noita.weapons.deck_evaluator import evaluate_cannula_fire
@@ -109,6 +111,7 @@ class Game:
         self.loot_cysts: List[LootCyst] = []
         self.exit_portal: Optional[WorldPortal] = None
         self.incubation_node: Optional[IncubationNode] = None
+        self.last_input: Optional[Any] = None
 
         # Statistics
         self.kills_this_run: int = 0
@@ -373,6 +376,7 @@ class Game:
             self.player.center_x,
             self.player.center_y,
         )
+        self.last_input = input_state
 
         if input_state.toggle_fullscreen:
             self.toggle_fullscreen_mode()
@@ -511,6 +515,7 @@ class Game:
             self.player.center_x,
             self.player.center_y,
         )
+        self.last_input = input_state
 
         if input_state.toggle_fullscreen:
             self.toggle_fullscreen_mode()
@@ -634,8 +639,27 @@ class Game:
 
         self.lighting.render(surf, cam_x, cam_y, lights, self.grid.grid)
 
-        # 4. In-Game HUD
-        self.hud.draw(surf, self.player, self.current_biome.name, self.current_biome.depth_level)
+        # 4. In-Game HUD & Hover Inspection
+        hover_target = None
+        mouse_pos = None
+        if self.last_input is not None and self.last_input.mouse_in_bounds:
+            mouse_pos = (self.last_input.sim_mouse_x, self.last_input.sim_mouse_y)
+            hover_target = get_hover_target(
+                self.grid,
+                self.enemies,
+                self.last_input.aim_world_x,
+                self.last_input.aim_world_y,
+                self.loot_cysts,
+            )
+
+        self.hud.draw(
+            surf,
+            self.player,
+            self.current_biome.name,
+            self.current_biome.depth_level,
+            hover_target=hover_target,
+            mouse_pos=mouse_pos,
+        )
 
         # 5. Present to window / Fullscreen display
         self.renderer.present(self.screen)

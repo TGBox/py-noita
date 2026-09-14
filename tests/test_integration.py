@@ -53,6 +53,17 @@ class TestIntegration(unittest.TestCase):
         # Ensure projectiles flew and grid updated
         self.assertGreater(self.game.grid.total_moved, 0, "Simulation grid should have active moved particles!")
 
+        # Test hover detection and rendering in _draw_playing
+        from py_noita.input.input_handler import InputState
+        dummy_input = InputState()
+        dummy_input.aim_world_x = self.game.player.center_x + 20
+        dummy_input.aim_world_y = self.game.player.center_y
+        dummy_input.sim_mouse_x = 200
+        dummy_input.sim_mouse_y = 100
+        dummy_input.mouse_in_bounds = True
+        self.game.last_input = dummy_input
+        self.game._draw_playing()
+
         # 4. Test entering Incubation Node (Holy Mountain)
         self.game.enter_incubation_node()
         self.assertEqual(self.game.state, STATE_INCUBATION)

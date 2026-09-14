@@ -18,6 +18,15 @@ from py_noita.simulation.materials import (
 from py_noita.weapons.projectile import Projectile
 
 
+ENEMY_NAMES = {
+    "MACROPHAGE": "Makrophage",
+    "ANTIBODY": "Antikörper",
+    "GRANULOCYTE": "Granulozyt",
+    "FLESH_WORM": "Fleischwurm",
+    "TUMOR_CYST": "Tumorzyste",
+}
+
+
 class Enemy:
     """Base class for immune defense cells and parasites."""
 
@@ -56,6 +65,19 @@ class Enemy:
     @property
     def center_y(self) -> float:
         return self.y + self.height / 2.0
+
+    @property
+    def display_name(self) -> str:
+        return ENEMY_NAMES.get(self.enemy_type, self.enemy_type.replace("_", " ").title())
+
+    def contains_point(self, wx: float, wy: float, pad: float = 3.0) -> bool:
+        """Check if world coordinates fall within enemy hitbox."""
+        if not self.alive:
+            return False
+        return (
+            self.x - pad <= wx <= self.x + self.width + pad
+            and self.y - pad <= wy <= self.y + self.height + pad
+        )
 
     def take_damage(self, amount: float, source: str = "DAMAGE") -> None:
         """Apply damage and queue blood bleeding particles."""
@@ -170,6 +192,17 @@ class FleshWorm(Enemy):
         super().__init__(x, y, "FLESH_WORM", hp=110.0, width=14, height=14, blood_mat=MAT_BLOOD, biomass_value=60)
         self.segments: List[WormSegment] = [WormSegment(x - i * 8, y) for i in range(num_segments)]
         self.target_angle: float = 0.0
+
+    def contains_point(self, wx: float, wy: float, pad: float = 3.0) -> bool:
+        """Check if world coordinates fall within head or any segment."""
+        if not self.alive:
+            return False
+        if super().contains_point(wx, wy, pad):
+            return True
+        for seg in self.segments:
+            if math.hypot(wx - seg.x, wy - seg.y) <= (7.0 + pad):
+                return True
+        return False
 
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
         if not self.alive:
