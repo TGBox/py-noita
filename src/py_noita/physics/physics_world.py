@@ -146,7 +146,8 @@ class PhysicsWorld:
                     for e in enemies:
                         if getattr(e, "alive", False):
                             if abs(b.x - e.center_x) < (hw + e.width * 0.5) and abs(b.y - e.center_y) < (hh + e.height * 0.5):
-                                crush_dmg = spd * (b.body.mass / 6.0) * 3.5
+                                mult = 2.2 if getattr(b, "is_stalactite", False) else 1.0
+                                crush_dmg = spd * (b.body.mass / 6.0) * 3.5 * mult
                                 e.take_damage(crush_dmg, "CRUSH")
                                 # Dampen body velocity
                                 b.body.velocity = (b.body.velocity.x * 0.45, b.body.velocity.y * 0.45)
@@ -227,6 +228,8 @@ class PhysicsWorld:
 
             if penetrations > 0:
                 if getattr(b, "name", "") == "Nerven-Lampion" and not getattr(b, "is_hanging", True):
+                    b.take_damage(999.0)
+                elif getattr(b, "name", "") in ("Terrain-Trümmer", "Decken-Stalaktit") and math.hypot(vx, vy) > 2.0:
                     b.take_damage(999.0)
 
                 # Normalize push vector

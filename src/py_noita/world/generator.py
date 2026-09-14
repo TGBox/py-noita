@@ -6,6 +6,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 
 from py_noita.config import WORLD_HEIGHT, WORLD_WIDTH
+from py_noita.physics.collapse import build_cartilage_bridge, build_stalactite
 from py_noita.physics.joints import (
     CartilageTendon,
     CeilingTentacle,
@@ -249,3 +250,38 @@ def spawn_biome_props(physics_world, grid: SimulationGrid, biome: Biome, count: 
             # Ceiling Tentacle
             tentacle = CeilingTentacle(physics_world, float(cx), float(cy + 1), num_segments=random.randint(4, 6))
             physics_world.add_tentacle(tentacle)
+
+    # 4. Ceiling Stalactites (pointed bone formations that fall and impale when shot loose)
+    stalactite_count = min(len(ceiling_candidates), max(3, int(count * 0.5)))
+    for i in range(stalactite_count):
+        cx, cy = ceiling_candidates[i]
+        build_stalactite(
+            grid,
+            cx,
+            cy + 1,
+            length=random.randint(14, 22),
+            base_width=random.randint(6, 9),
+            mat=biome.secondary_solid,
+        )
+
+    # 5. Collapsing Cartilage Bridges across cavern gaps
+    for _ in range(max(2, int(h / 120))):
+        by = random.randint(int(h * 0.2), int(h * 0.8))
+        bx_start = random.randint(25, max(30, w - 80))
+        if grid.is_solid(bx_start, by):
+            gap_len = 0
+            for span in range(1, 40):
+                if bx_start + span >= w - 1:
+                    break
+                if grid.is_empty(bx_start + span, by):
+                    gap_len += 1
+                elif grid.is_solid(bx_start + span, by) and gap_len >= 8:
+                    build_cartilage_bridge(
+                        grid,
+                        bx_start,
+                        bx_start + span,
+                        by,
+                        thickness=random.randint(3, 5),
+                        mat=biome.secondary_solid,
+                    )
+                    break

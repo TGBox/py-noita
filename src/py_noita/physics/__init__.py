@@ -1,5 +1,9 @@
-"""2D Rigid-body physics engine coupled with pixel simulation grid."""
-
+from py_noita.physics.collapse import (
+    CollapsingTerrainChunk,
+    build_cartilage_bridge,
+    build_stalactite,
+    check_and_collapse_terrain,
+)
 from py_noita.physics.joints import (
     CartilageTendon,
     CeilingTentacle,
@@ -30,4 +34,8 @@ __all__ = [
     "SwingingMeatChunk",
     "CeilingTentacle",
     "TentacleSegment",
+    "CollapsingTerrainChunk",
+    "check_and_collapse_terrain",
+    "build_stalactite",
+    "build_cartilage_bridge",
 ]

@@ -137,4 +137,11 @@ def create_explosion(
                     grid.set_pixel(px, py, MAT_SMOKE, life_val=np.random.randint(60, 180))
 
     grid.mark_dirty(cx, cy, radius + 4)
+
+    # 3. Cellular Structural Collapse for unsupported/severed terrain
+    if pw is not None:
+        from py_noita.physics.collapse import check_and_collapse_terrain
+
+        check_and_collapse_terrain(grid, pw, (cx, cy), radius + 3)
+
     return damaged_cells, debris_list

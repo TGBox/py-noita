@@ -26,7 +26,7 @@
     - An Knorpelsehnen hängende Nerven-Lampions (spenden Licht, stürzen bei Treffern ab und entzünden den Boden).
     - Schwingende Fleischklumpen und Decken-Tentakel.
 
-[ ] (B) [ENGINE] Zelluläre Einsturz- und Strukturmechanik.
+[x] (B) [ENGINE] Zelluläre Einsturz- und Strukturmechanik.
     - Freigeschossene Terrain-Abschnitte (ohne strukturelle Verankerung zu Randknochen) lösen sich und fallen als zerschellende Trümmer herab.
     - Einstürzende Knorpelbrücken und Decken-Stalaktiten.
 
