@@ -99,7 +99,7 @@
     - Chromatische Aberration und Druckwellen-Schockwellenring bei Detonationen.
     - Viszeraler Vignette- und Pulsier-Effekt bei niedrigen Lebenspunkten.
 
-[ ] (A) [RENDER] Flüssigkeits-Shader & Oberflächenspannung.
+[x] (A) [RENDER] Flüssigkeits-Shader & Oberflächenspannung.
     - Glättung von Pixel-Flüssigkeiten zu zusammenhängenden Flüssigkeitskörpern mit viskosen Menisken.
     - Lichtreflexionen und Glanzlichter auf Blut- und Säure-Oberflächen.
 

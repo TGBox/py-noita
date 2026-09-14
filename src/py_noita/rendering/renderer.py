@@ -1,5 +1,6 @@
 """Core rendering engine: Pixel grid blitting, dynamic scaling, and aspect management."""
 
+import math
 from typing import Tuple
 import pygame
 import numpy as np
@@ -15,7 +16,22 @@ from py_noita.config import (
     VIEWPORT_SIM_WIDTH_21_9,
 )
 from py_noita.rendering.shaders import ShaderPostProcessor
-from py_noita.simulation.materials import LUT_COLORS, MAT_AIR, PROP_GLOW
+from py_noita.simulation.materials import (
+    LUT_COLORS,
+    MAT_ACID,
+    MAT_AIR,
+    MAT_BILE,
+    MAT_BLOOD,
+    MAT_LYMPH,
+    MAT_MUTAGEN,
+    MAT_PUS,
+    MAT_WATER,
+    PROP_GLOW,
+    PROP_STATE,
+    STATE_EMPTY,
+    STATE_LIQUID,
+    STATE_SOLID,
+)
 
 
 @njit(fastmath=True)
@@ -26,12 +42,18 @@ def render_slice_to_surfarray(
     cam_y: int,
     out_surfarray: np.ndarray,
     lut_colors: np.ndarray,
+    prop_state: np.ndarray,
     bg_r: int,
     bg_g: int,
     bg_b: int,
+    time_val: float = 0.0,
 ) -> None:
     """Fast Numba kernel that writes the visible world slice directly into
-    out_surfarray (view_w, view_h, 3) for Pygame surfarray blit.
+    out_surfarray (view_w, view_h, 3) for Pygame surfarray blit, featuring:
+    - Viscous capillary menisci climbing up solid container walls
+    - Metaball-style subpixel fluid edge antialiasing and cohesion bridging
+    - Dynamic specular wave gleam on blood, acid, bile, and mutagen surfaces
+    - Viscous fluid body smoothing to eliminate graininess in liquid pools
     """
     view_w = out_surfarray.shape[0]
     view_h = out_surfarray.shape[1]
@@ -44,12 +66,128 @@ def render_slice_to_surfarray(
             gy = cam_y + sy
             if 0 <= gx < grid_w and 0 <= gy < grid_h:
                 mat = grid[gy, gx]
-                if mat == MAT_AIR:
+                st = prop_state[mat]
+
+                if mat == MAT_AIR or st == STATE_EMPTY:
                     # Subtle visceral cavern background dither
                     dither = ((gx ^ gy) & 3) * 2
-                    out_surfarray[sx, sy, 0] = bg_r + dither
-                    out_surfarray[sx, sy, 1] = bg_g + dither
-                    out_surfarray[sx, sy, 2] = bg_b + dither
+                    r = bg_r + dither
+                    g = bg_g + dither
+                    b = bg_b + dither
+
+                    # 1. Viscous Meniscus Effect at solid boundary walls
+                    # Fluid climbing up solid walls due to capillary action / surface tension
+                    has_liquid_below = False
+                    below_mat = MAT_AIR
+                    if gy + 1 < grid_h:
+                        below_mat = grid[gy + 1, gx]
+                        if prop_state[below_mat] == STATE_LIQUID:
+                            has_liquid_below = True
+
+                    if has_liquid_below:
+                        # Check if touching solid wall to the left or right
+                        is_wall_left = (gx > 0 and prop_state[grid[gy, gx - 1]] == STATE_SOLID)
+                        is_wall_right = (gx < grid_w - 1 and prop_state[grid[gy, gx + 1]] == STATE_SOLID)
+
+                        if is_wall_left or is_wall_right:
+                            # Meniscus capillary climb: blend liquid below onto wall contact
+                            lr = lut_colors[below_mat, 0]
+                            lg = lut_colors[below_mat, 1]
+                            lb = lut_colors[below_mat, 2]
+                            r = int(r * 0.45 + lr * 0.55)
+                            g = int(g * 0.45 + lg * 0.55)
+                            b = int(b * 0.45 + lb * 0.55)
+                        else:
+                            # Subpixel antialiasing on curved liquid free surface (metaball boundary)
+                            diag_l = (gx > 0 and prop_state[grid[gy + 1, gx - 1]] == STATE_LIQUID)
+                            diag_r = (gx < grid_w - 1 and prop_state[grid[gy + 1, gx + 1]] == STATE_LIQUID)
+                            if diag_l and diag_r:
+                                lr = lut_colors[below_mat, 0]
+                                lg = lut_colors[below_mat, 1]
+                                lb = lut_colors[below_mat, 2]
+                                r = int(r * 0.75 + lr * 0.25)
+                                g = int(g * 0.75 + lg * 0.25)
+                                b = int(b * 0.75 + lb * 0.25)
+                    else:
+                        # 2. Horizontal Cohesion Bridging (single-cell air gaps between liquids)
+                        if 0 < gx < grid_w - 1:
+                            l_mat = grid[gy, gx - 1]
+                            r_mat = grid[gy, gx + 1]
+                            if prop_state[l_mat] == STATE_LIQUID and prop_state[r_mat] == STATE_LIQUID:
+                                lr = lut_colors[l_mat, 0]
+                                lg = lut_colors[l_mat, 1]
+                                lb = lut_colors[l_mat, 2]
+                                r = int(r * 0.35 + lr * 0.65)
+                                g = int(g * 0.35 + lg * 0.65)
+                                b = int(b * 0.35 + lb * 0.65)
+
+                    out_surfarray[sx, sy, 0] = max(0, min(255, r))
+                    out_surfarray[sx, sy, 1] = max(0, min(255, g))
+                    out_surfarray[sx, sy, 2] = max(0, min(255, b))
+
+                elif st == STATE_LIQUID:
+                    base_r = lut_colors[mat, 0]
+                    base_g = lut_colors[mat, 1]
+                    base_b = lut_colors[mat, 2]
+
+                    # Organic variation from color_var (0 to 3)
+                    var = color_var[gy, gx]
+                    offset = -4 if var == 0 else (-1 if var == 1 else (3 if var == 2 else 6))
+                    r = base_r + offset
+                    g = base_g + offset
+                    b = base_b + offset
+
+                    # Fluid Body Smoothing: smooth out noise inside large liquid pools
+                    if 0 < gy < grid_h - 1 and 0 < gx < grid_w - 1:
+                        if (
+                            prop_state[grid[gy - 1, gx]] == STATE_LIQUID
+                            and prop_state[grid[gy + 1, gx]] == STATE_LIQUID
+                            and prop_state[grid[gy, gx - 1]] == STATE_LIQUID
+                            and prop_state[grid[gy, gx + 1]] == STATE_LIQUID
+                        ):
+                            r = int(r * 0.75 + base_r * 0.25)
+                            g = int(g * 0.75 + base_g * 0.25)
+                            b = int(b * 0.75 + base_b * 0.25)
+
+                    # Dynamic Specular Wave Highlights on Liquid Free Surface
+                    is_surface = (gy == 0 or grid[gy - 1, gx] == MAT_AIR or prop_state[grid[gy - 1, gx]] == STATE_EMPTY)
+                    if is_surface:
+                        phase1 = gx * 0.38 + time_val * 4.2
+                        phase2 = gx * 0.95 - time_val * 2.7
+                        w1 = 0.5 + 0.5 * math.sin(phase1)
+                        w2 = 0.5 + 0.5 * math.sin(phase2)
+                        spec = (w1 * 0.7 + w2 * 0.3) ** 4
+
+                        if mat == MAT_BLOOD:
+                            # Arterial ruby crest gleam
+                            r += int(spec * 85.0)
+                            g += int(spec * 30.0)
+                            b += int(spec * 40.0)
+                        elif mat == MAT_ACID:
+                            # Caustic electric green / cyan glow
+                            r += int(spec * 65.0)
+                            g += int(spec * 130.0)
+                            b += int(spec * 85.0)
+                        elif mat == MAT_MUTAGEN:
+                            # Prismatic ultraviolet shimmer
+                            r += int(spec * 90.0)
+                            g += int(spec * 50.0)
+                            b += int(spec * 140.0)
+                        elif mat == MAT_BILE or mat == MAT_PUS:
+                            # Viscous golden oily sheen
+                            r += int(spec * 85.0)
+                            g += int(spec * 85.0)
+                            b += int(spec * 25.0)
+                        else:
+                            # Water / Lymph crystalline highlight
+                            r += int(spec * 75.0)
+                            g += int(spec * 95.0)
+                            b += int(spec * 120.0)
+
+                    out_surfarray[sx, sy, 0] = max(0, min(255, r))
+                    out_surfarray[sx, sy, 1] = max(0, min(255, g))
+                    out_surfarray[sx, sy, 2] = max(0, min(255, b))
+
                 else:
                     base_r = lut_colors[mat, 0]
                     base_g = lut_colors[mat, 1]
@@ -94,6 +232,7 @@ class Renderer:
 
         # GLSL & VFX Shader Post-Processor
         self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
+        self.anim_time: float = 0.0
 
     def set_resolution(self, screen_res: Tuple[int, int]) -> None:
         """Switch between 1920x1080 (16:9), 2560x1080 (21:9 Ultrawide), or custom."""
@@ -127,8 +266,16 @@ class Renderer:
             offset_y = (target_h - scaled_h) // 2
             self.dest_rect = pygame.Rect(0, offset_y, target_w, scaled_h)
 
-    def render_grid(self, grid: np.ndarray, color_var: np.ndarray, cam_x: int, cam_y: int) -> None:
-        """Blit simulation grid pixels to the internal sim_surface."""
+    def render_grid(
+        self,
+        grid: np.ndarray,
+        color_var: np.ndarray,
+        cam_x: int,
+        cam_y: int,
+        dt: float = 0.016,
+    ) -> None:
+        """Blit simulation grid pixels to the internal sim_surface with fluid smoothing and surface wave gleams."""
+        self.anim_time += dt
         render_slice_to_surfarray(
             grid,
             color_var,
@@ -136,9 +283,11 @@ class Renderer:
             cam_y,
             self.surfarray_buffer,
             LUT_COLORS,
+            PROP_STATE,
             COLOR_BG_DARK[0],
             COLOR_BG_DARK[1],
             COLOR_BG_DARK[2],
+            self.anim_time,
         )
         pygame.surfarray.blit_array(self.sim_surface, self.surfarray_buffer)
 
