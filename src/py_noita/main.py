@@ -56,6 +56,7 @@ from py_noita.weapons.projectile import Projectile
 from py_noita.world.biome import ALL_BIOMES, Biome
 from py_noita.world.generator import LootCyst, WorldPortal, generate_world_level
 from py_noita.world.incubation_node import IncubationNode
+from py_noita.world.streamer import WorldStreamer
 
 
 # Game States
@@ -121,8 +122,12 @@ class Game:
         self.earned_mutagen: int = 0
         self.is_victory: bool = False
 
-        # Strain selection in menu
+        # Strain selection & World Seed in menu
         self.menu_strain_index: int = 0
+        self.world_seed: int = random.randint(100000, 999999)
+        self.entering_seed: bool = False
+        self.seed_input_str: str = ""
+        self.streamer: Optional[WorldStreamer] = None
 
     @property
     def current_biome(self) -> Biome:
@@ -165,6 +170,11 @@ class Game:
         self.perk_manager = PerkManager()
         self.projectiles.clear()
         self.explosion_debris.clear()
+
+        # Initialize streaming world manager
+        if self.streamer:
+            self.streamer.shutdown()
+        self.streamer = WorldStreamer(seed=self.world_seed)
 
         # Load Biome 1
         self.load_biome_level(0)
@@ -220,8 +230,11 @@ class Game:
         self.current_biome_index = biome_index
         biome = self.current_biome
 
-        # Generate cavern grid
-        spawn_pos, portal, enemy_spawns, loot = generate_world_level(self.grid, biome)
+        # Generate cavern grid with deterministic seed
+        level_seed = self.world_seed + biome_index * 1337
+        spawn_pos, portal, enemy_spawns, loot = generate_world_level(
+            self.grid, biome, physics_world=self.physics_world, seed=level_seed
+        )
         self.exit_portal = portal
         self.loot_cysts = loot
 
@@ -304,13 +317,36 @@ class Game:
         pygame.quit()
 
     def _update_menu(self, events) -> None:
-        """Handle main menu / strain selection input."""
+        """Handle main menu / strain selection input and world seed entry."""
         for event in events:
             if event.type == pygame.KEYDOWN:
+                if self.entering_seed:
+                    if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                        if self.seed_input_str.strip():
+                            try:
+                                self.world_seed = int(self.seed_input_str.strip())
+                            except ValueError:
+                                self.world_seed = abs(hash(self.seed_input_str.strip())) % (10**7)
+                        self.entering_seed = False
+                    elif event.key == pygame.K_ESCAPE:
+                        self.entering_seed = False
+                    elif event.key == pygame.K_BACKSPACE:
+                        self.seed_input_str = self.seed_input_str[:-1]
+                    else:
+                        if event.unicode and len(self.seed_input_str) < 9:
+                            if event.unicode.isdigit():
+                                self.seed_input_str += event.unicode
+                    continue
+
                 if event.key in (pygame.K_d, pygame.K_RIGHT):
                     self.menu_strain_index = (self.menu_strain_index + 1) % len(ALL_STRAINS)
                 elif event.key in (pygame.K_a, pygame.K_LEFT):
                     self.menu_strain_index = (self.menu_strain_index - 1) % len(ALL_STRAINS)
+                elif event.key == pygame.K_r:
+                    self.world_seed = random.randint(100000, 999999)
+                elif event.key == pygame.K_s:
+                    self.entering_seed = True
+                    self.seed_input_str = str(self.world_seed)
                 elif event.key == pygame.K_u:
                     # Try to unlock selected strain
                     strain = ALL_STRAINS[self.menu_strain_index]
@@ -333,35 +369,43 @@ class Game:
         # Title
         title = self.title_font.render("PY-NOITA // MIKROKOSMOS", True, (255, 60, 80))
         sub = self.font.render("Jeder Pixel physikalisch simuliert  •  Bio-Horror Deckbuilder", True, (190, 180, 170))
-        self.screen.blit(title, (view_w // 2 - title.get_width() // 2, 80))
-        self.screen.blit(sub, (view_w // 2 - sub.get_width() // 2, 115))
+        self.screen.blit(title, (view_w // 2 - title.get_width() // 2, 70))
+        self.screen.blit(sub, (view_w // 2 - sub.get_width() // 2, 105))
 
         # Mutagen Currency
         mut_surf = self.font.render(f"Mutagen-Essenz (Labor-Konto): {self.codex.mutagen_essence} M", True, (220, 50, 240))
-        self.screen.blit(mut_surf, (view_w // 2 - mut_surf.get_width() // 2, 150))
+        self.screen.blit(mut_surf, (view_w // 2 - mut_surf.get_width() // 2, 138))
 
         # Strain Card
         strain = ALL_STRAINS[self.menu_strain_index]
         is_unlocked = strain.strain_id in self.codex.unlocked_strains
 
-        card_w, card_h = 360, 140
+        card_w, card_h = 360, 130
         card_x = view_w // 2 - card_w // 2
-        card_y = 185
+        card_y = 170
         pygame.draw.rect(self.screen, (25, 18, 30), (card_x, card_y, card_w, card_h), border_radius=6)
         pygame.draw.rect(self.screen, (160, 80, 110) if is_unlocked else (70, 60, 75), (card_x, card_y, card_w, card_h), 2, border_radius=6)
 
         strain_title = self.font.render(f"< {strain.name} >" if is_unlocked else f"< {strain.name} (GESPERRT) >", True, (255, 230, 120) if is_unlocked else (150, 140, 145))
-        self.screen.blit(strain_title, (card_x + card_w // 2 - strain_title.get_width() // 2, card_y + 15))
+        self.screen.blit(strain_title, (card_x + card_w // 2 - strain_title.get_width() // 2, card_y + 12))
 
         desc = self.font.render(strain.description, True, (210, 200, 190))
-        self.screen.blit(desc, (card_x + card_w // 2 - desc.get_width() // 2, card_y + 45))
+        self.screen.blit(desc, (card_x + card_w // 2 - desc.get_width() // 2, card_y + 40))
 
         if is_unlocked:
             start_prompt = self.font.render("[LEERTASTE] Abstieg in den Wirt beginnen", True, (80, 255, 120))
-            self.screen.blit(start_prompt, (card_x + card_w // 2 - start_prompt.get_width() // 2, card_y + 90))
+            self.screen.blit(start_prompt, (card_x + card_w // 2 - start_prompt.get_width() // 2, card_y + 85))
         else:
             unlock_prompt = self.font.render(f"[U] Freischalten ({strain.unlock_cost} Mutagen)", True, (240, 120, 220))
-            self.screen.blit(unlock_prompt, (card_x + card_w // 2 - unlock_prompt.get_width() // 2, card_y + 90))
+            self.screen.blit(unlock_prompt, (card_x + card_w // 2 - unlock_prompt.get_width() // 2, card_y + 85))
+
+        # World Seed Bar
+        seed_y = card_y + card_h + 14
+        if self.entering_seed:
+            seed_surf = self.font.render(f"WELT-SEED EINGEBEN: [ {self.seed_input_str}_ ]  (ENTER = Bestätigen, ESC = Abbrechen)", True, (255, 230, 80))
+        else:
+            seed_surf = self.font.render(f"WELT-SEED: [ {self.world_seed} ]  •  [R] Zufälliger Seed  •  [S] Seed eingeben", True, (175, 220, 240))
+        self.screen.blit(seed_surf, (view_w // 2 - seed_surf.get_width() // 2, seed_y))
 
         # Controls info at bottom
         ctrl_info = self.font.render("[F1] Auflösung (Full HD / Ultrawide)  |  [F11] Vollbild  |  WASD + Maus-Zielen", True, (130, 125, 120))
@@ -460,6 +504,12 @@ class Game:
             enemies=self.enemies,
             player=self.player,
         )
+
+        # 5c. Update World Chunk Streaming & Memory Management
+        if self.streamer:
+            self.streamer.update_streaming(
+                self.player.center_x, self.player.center_y, self.grid
+            )
 
         # 6. Update Enemies & AI
         spawned_hostile_projs: List[Projectile] = []

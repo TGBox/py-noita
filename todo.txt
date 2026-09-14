@@ -33,7 +33,7 @@
 # ------------------------------------------------------------------------------
 # MEILENSTEIN 2: WELTUMFANG, CHUNK-STREAMING, GEHEIMNISSE & ENDEN
 # ------------------------------------------------------------------------------
-[ ] (A) [ENGINE] Asynchrones Chunk-Streaming und Speicher-Verwaltung.
+[x] (A) [ENGINE] Asynchrones Chunk-Streaming und Speicher-Verwaltung.
     - Weltgröße von fester Arena auf unbegrenzte/riesige gestreamte Welt erweitern.
     - Chunks im Hintergrund von Disk laden/speichern, um RAM-Verbrauch unter 500 MB zu halten.
     - Determinierte Weltgenerierung über Welt-Seed (Seeds im Hauptmenü eingebbar).

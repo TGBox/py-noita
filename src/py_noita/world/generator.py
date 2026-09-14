@@ -60,10 +60,15 @@ def generate_world_level(
     grid: SimulationGrid,
     biome: Biome,
     physics_world: Optional[Any] = None,
+    seed: Optional[int] = None,
 ) -> Tuple[Tuple[float, float], WorldPortal, List[Tuple[float, float, str]], List[LootCyst]]:
     """Generate a procedural subterranean organ level for the given biome.
     Returns: (player_spawn_pos, exit_portal, enemy_spawn_points, loot_cysts).
     """
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(abs(seed) % (2**31))
+
     w = grid.width
     h = grid.height
 
