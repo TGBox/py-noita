@@ -48,7 +48,7 @@
     - Biom 7: Wirbelsäule & Nervenbahnen (Hochspannungs-Synapsen, bio-elektrische Gefahren).
     - Biom 8: Das Ur-Zentrum (Gehirnkern des Wirts, Mutagen-Fluten, finale Boss-Kammer).
 
-[ ] (B) [GAMEPLAY] Erkundung, Secrets, Gen-Orbs & Lore.
+[x] (B) [GAMEPLAY] Erkundung, Secrets, Gen-Orbs & Lore.
     - 11 versteckte Gen-Orbs in abgelegenen Organ-Kavitäten platzieren (schalten Ur-Gene frei und stärken den Endboss).
     - Uralte DNA-Tablets (Lore-Inschriften über den Ursprung des Wirtsorganismus).
     - Geheime optionale Bio-Bosse:

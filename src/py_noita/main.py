@@ -56,6 +56,7 @@ from py_noita.weapons.projectile import Projectile
 from py_noita.world.biome import ALL_BIOMES, Biome
 from py_noita.world.generator import LootCyst, WorldPortal, generate_world_level
 from py_noita.world.incubation_node import IncubationNode
+from py_noita.world.secrets import DnaTablet, GeneOrb
 from py_noita.world.streamer import WorldStreamer
 
 
@@ -113,6 +114,9 @@ class Game:
         self.projectiles: List[Projectile] = []
         self.explosion_debris: List[ExplosionDebris] = []
         self.loot_cysts: List[LootCyst] = []
+        self.gene_orbs: List[GeneOrb] = []
+        self.dna_tablets: List[DnaTablet] = []
+        self.secret_boss: Optional[Enemy] = None
         self.exit_portal: Optional[WorldPortal] = None
         self.incubation_node: Optional[IncubationNode] = None
         self.last_input: Optional[Any] = None
@@ -232,11 +236,14 @@ class Game:
 
         # Generate cavern grid with deterministic seed
         level_seed = self.world_seed + biome_index * 1337
-        spawn_pos, portal, enemy_spawns, loot = generate_world_level(
+        spawn_pos, portal, enemy_spawns, loot, orbs, tablets, boss = generate_world_level(
             self.grid, biome, physics_world=self.physics_world, seed=level_seed
         )
         self.exit_portal = portal
         self.loot_cysts = loot
+        self.gene_orbs = orbs
+        self.dna_tablets = tablets
+        self.secret_boss = boss
 
         # Create/relocate player
         if self.player is None:
@@ -251,6 +258,8 @@ class Game:
         self.enemies.clear()
         for ex, ey, etype in enemy_spawns:
             self.enemies.append(create_enemy(etype, ex, ey))
+        if self.secret_boss is not None:
+            self.enemies.append(self.secret_boss)
 
         self.projectiles.clear()
         self.particles.particles.clear()
@@ -561,6 +570,20 @@ class Game:
                     self.audio.play("pickup", volume=0.9)
                     self.particles.spawn_spore_puff(cyst.x, cyst.y, count=12)
 
+        # 7b. Check Gene Orbs & Secret Boss Attacks
+        for orb in self.gene_orbs:
+            new_gene = orb.update(self.player)
+            if new_gene:
+                self.audio.play("pickup", volume=1.0)
+                self.particles.spawn_spore_puff(orb.x, orb.y, count=30)
+
+        if self.secret_boss and self.secret_boss.alive and hasattr(self.secret_boss, "update_boss"):
+            b_projs, b_minions = self.secret_boss.update_boss(self.player, self.grid, dt)
+            for bp in b_projs:
+                bp.update(self.grid, [self.player])
+                self.projectiles.append(bp)
+            self.enemies.extend(b_minions)
+
         # 8. Check Exit Portal
         if self.exit_portal and self.exit_portal.is_player_inside(self.player.center_x, self.player.center_y):
             self.enter_incubation_node()
@@ -710,6 +733,14 @@ class Game:
         if self.state == STATE_INCUBATION and self.incubation_node:
             self.incubation_node.draw(surf, cam_x, cam_y, self.font)
 
+        # Ancient DNA Lore Tablets
+        for tab in self.dna_tablets:
+            tab.draw(surf, cam_x, cam_y, self.font)
+
+        # Gene Orbs
+        for orb in self.gene_orbs:
+            orb.draw(surf, cam_x, cam_y, self.font)
+
         # Loot Cysts
         for cyst in self.loot_cysts:
             if cyst.alive:
@@ -760,6 +791,8 @@ class Game:
                 self.last_input.aim_world_y,
                 self.loot_cysts,
                 rigid_bodies=self.physics_world.bodies,
+                gene_orbs=self.gene_orbs,
+                dna_tablets=self.dna_tablets,
             )
 
         self.hud.draw(
@@ -769,6 +802,7 @@ class Game:
             self.current_biome.depth_level,
             hover_target=hover_target,
             mouse_pos=mouse_pos,
+            active_boss=self.secret_boss if (self.secret_boss and self.secret_boss.alive) else None,
         )
 
         # 5. Present to window / Fullscreen display

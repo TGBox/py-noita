@@ -33,14 +33,17 @@ def get_hover_target(
     world_y: float,
     loot_cysts: Optional[Sequence[Any]] = None,
     rigid_bodies: Optional[Sequence[Any]] = None,
+    gene_orbs: Optional[Sequence[Any]] = None,
+    dna_tablets: Optional[Sequence[Any]] = None,
 ) -> Optional[HoverTarget]:
     """Inspect world coordinates and return the hovered entity, object, or material.
 
     Priority order:
     1. Living enemies (closest if overlapping)
-    2. Physical rigid bodies / props
-    3. Loot cysts / interactive environmental objects
-    4. Pixel material from the physics simulation grid (if not air)
+    2. Gene Orbs & DNA Lore Tablets
+    3. Physical rigid bodies / props
+    4. Loot cysts / interactive environmental objects
+    5. Pixel material from the physics simulation grid (if not air)
     """
     # 1. Check living enemies
     candidate_enemies = []
@@ -55,25 +58,58 @@ def get_hover_target(
 
         # Accent color depending on enemy type
         col = (240, 70, 80)
-        if best_enemy.enemy_type == "MACROPHAGE":
+        etype = best_enemy.enemy_type
+        if etype == "MACROPHAGE":
             col = (210, 200, 110)
-        elif best_enemy.enemy_type == "ANTIBODY":
+        elif etype == "ANTIBODY":
             col = (210, 230, 245)
-        elif best_enemy.enemy_type == "GRANULOCYTE":
+        elif etype == "GRANULOCYTE":
             col = (110, 245, 60)
-        elif best_enemy.enemy_type == "FLESH_WORM":
+        elif etype == "FLESH_WORM" or etype == "GIANT_HELMINTH":
             col = (230, 50, 70)
-        elif best_enemy.enemy_type == "TUMOR_CYST":
+        elif etype == "TUMOR_CYST":
             col = (220, 50, 230)
+        elif etype == "CHITIN_BEETLE":
+            col = (160, 140, 190)
+        elif etype == "SPORE_POD" or etype == "PRIMORDIAL_PHAGOCYTE":
+            col = (180, 220, 40)
+        elif etype == "SYNAPTIC_SENTRY" or etype == "SYNAPTIC_PARASITE":
+            col = (50, 220, 255)
 
         return HoverTarget(
             target_type="ENEMY",
-            name=best_enemy.display_name,
-            category="Gegner",
+            name=getattr(best_enemy, "boss_title", best_enemy.display_name),
+            category="Bio-Boss" if "HELMINTH" in etype or "PHAGOCYTE" in etype or "PARASITE" in etype else "Gegner",
             color=col,
             current_hp=best_enemy.hp,
             max_hp=best_enemy.max_hp,
         )
+
+    # 1b. Check Gene Orbs
+    if gene_orbs:
+        for orb in gene_orbs:
+            if not getattr(orb, "collected", False):
+                ox = getattr(orb, "x", 0.0)
+                oy = getattr(orb, "y", 0.0)
+                r = getattr(orb, "radius", 9.0)
+                if math.hypot(world_x - ox, world_y - oy) <= (r + 4.0):
+                    return HoverTarget(
+                        target_type="OBJECT",
+                        name=getattr(orb, "name", "DNA-Gen-Orb"),
+                        category="Ur-Geheimnis",
+                        color=(255, 215, 60),
+                    )
+
+    # 1c. Check DNA Lore Tablets
+    if dna_tablets:
+        for tab in dna_tablets:
+            if hasattr(tab, "contains_point") and tab.contains_point(world_x, world_y):
+                return HoverTarget(
+                    target_type="OBJECT",
+                    name=getattr(tab, "title", "Uraltes DNA-Tablet"),
+                    category="Uralte Lore",
+                    color=(210, 200, 160),
+                )
 
     # 2. Check physical rigid bodies
     if rigid_bodies:

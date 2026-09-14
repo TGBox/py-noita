@@ -20,6 +20,11 @@ from py_noita.physics.props import (
     CartilageRaft,
     ChitinShield,
 )
+from py_noita.entities.bosses import (
+    GiantHelminth,
+    PrimordialPhagocyte,
+    SynapticParasite,
+)
 from py_noita.simulation.grid import SimulationGrid
 from py_noita.simulation.materials import (
     MAT_AIR,
@@ -28,6 +33,7 @@ from py_noita.simulation.materials import (
     MAT_WALL_BONE,
 )
 from py_noita.world.biome import Biome, BIOME_EPIDERMIS
+from py_noita.world.secrets import DnaTablet, GeneOrb, spawn_secrets_for_biome
 
 
 class WorldPortal:
@@ -220,7 +226,27 @@ def generate_world_level(
     if pw is not None:
         spawn_biome_props(pw, grid, biome)
 
-    return (spawn_x, spawn_y), exit_portal, enemy_spawns, loot_cysts
+    # 11. Secrets: Gene Orbs and Ancient DNA Tablets
+    gene_orbs, dna_tablets = spawn_secrets_for_biome(
+        grid, biome.biome_id, biome.depth_level, seed=seed
+    )
+
+    # 12. Secret Optional Bio-Bosses
+    secret_boss = None
+    if biome.biome_id == "BONE_CATACOMBS":
+        # Ossuary lair for Giant Helminth in deep catacombs
+        grid.carve_circle(w - 70, h - 90, 26, MAT_AIR)
+        secret_boss = GiantHelminth(float(w - 70), float(h - 90))
+    elif biome.biome_id == "BILE_LAGOON":
+        # Bile trench lair for Primordial Phagocyte
+        grid.carve_circle(w // 2, h - 90, 30, MAT_AIR)
+        secret_boss = PrimordialPhagocyte(float(w // 2), float(h - 90))
+    elif biome.biome_id == "SPINE_NERVES":
+        # Electric synapse shrine for Synaptic Parasite
+        grid.carve_circle(w // 2, h - 100, 28, MAT_AIR)
+        secret_boss = SynapticParasite(float(w // 2), float(h - 100))
+
+    return (spawn_x, spawn_y), exit_portal, enemy_spawns, loot_cysts, gene_orbs, dna_tablets, secret_boss
 
 
 def spawn_biome_props(physics_world, grid: SimulationGrid, biome: Biome, count: int = 14) -> None:

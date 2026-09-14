@@ -110,6 +110,8 @@ class Player:
 
         # Meta attributes
         self.biomass_currency: int = 0
+        self.orbs_collected: int = 0
+        self.discovered_tablets: List[int] = []
         self.alive: bool = True
 
     @property

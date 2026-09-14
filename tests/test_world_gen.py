@@ -16,7 +16,7 @@ class TestWorldGeneration(unittest.TestCase):
 
     def test_cavern_generation(self):
         """Verify cavern generation carves air, places portal and spawns."""
-        spawn_pos, portal, enemies, loot = generate_world_level(self.grid, BIOME_EPIDERMIS)
+        spawn_pos, portal, enemies, loot, *secrets = generate_world_level(self.grid, BIOME_EPIDERMIS)
 
         # 1. Player spawn position must be air
         sx, sy = int(spawn_pos[0]), int(spawn_pos[1])

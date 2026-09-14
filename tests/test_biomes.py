@@ -131,7 +131,7 @@ class TestEightOrganBiomes(unittest.TestCase):
         """Verify level generator runs cleanly without errors for all 8 biomes."""
         for b in ALL_BIOMES:
             g = SimulationGrid(width=160, height=200)
-            spawn_pos, portal, enemies, loot = generate_world_level(g, b, seed=42)
+            spawn_pos, portal, enemies, loot, *secrets = generate_world_level(g, b, seed=42)
             self.assertIsNotNone(spawn_pos)
             self.assertIsNotNone(portal)
             self.assertGreater(len(enemies), 0)

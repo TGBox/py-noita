@@ -22,6 +22,7 @@ class HUD:
         depth_level: int,
         hover_target: Optional[HoverTarget] = None,
         mouse_pos: Optional[Tuple[int, int]] = None,
+        active_boss: Optional[Any] = None,
     ) -> None:
         """Render HUD elements directly onto the viewport surface."""
         # 1. Vital Bars (Top Left)
@@ -71,6 +72,17 @@ class HUD:
 
         depth_text = self.font.render(f"{biome_name} [Tiefe {depth_level}]", True, (210, 200, 190))
         surface.blit(depth_text, (view_w - depth_text.get_width() - 10, 28))
+
+        # DNA Orbs count
+        orbs_count = getattr(player, "orbs_collected", 0)
+        orbs_text = self.font.render(f"DNA-Orbs: {orbs_count} / 11", True, (255, 215, 60))
+        surface.blit(orbs_text, (view_w - orbs_text.get_width() - 10, 44))
+        pygame.draw.circle(surface, (255, 220, 80), (view_w - orbs_text.get_width() - 18, 50), 3)
+
+        # 2b. Boss Health Bar (if engaged)
+        if active_boss and active_boss.alive:
+            from py_noita.entities.bosses import draw_boss_health_bar
+            draw_boss_health_bar(surface, active_boss, self.font, view_w, surface.get_height())
 
         # 3. Organ-Cannula Slots (Keys 1-4, Bottom Left)
         self._draw_cannula_slots(surface, player, x=10, y=surface.get_height() - 28)
