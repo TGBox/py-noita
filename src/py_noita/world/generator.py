@@ -21,6 +21,7 @@ from py_noita.physics.props import (
     ChitinShield,
 )
 from py_noita.entities.bosses import (
+    BrainCoreBoss,
     GiantHelminth,
     PrimordialPhagocyte,
     SynapticParasite,
@@ -67,9 +68,10 @@ def generate_world_level(
     biome: Biome,
     physics_world: Optional[Any] = None,
     seed: Optional[int] = None,
-) -> Tuple[Tuple[float, float], WorldPortal, List[Tuple[float, float, str]], List[LootCyst]]:
+    orbs_collected: int = 0,
+) -> Tuple[Tuple[float, float], WorldPortal, List[Tuple[float, float, str]], List[LootCyst], List[GeneOrb], List[DnaTablet], Optional[Any]]:
     """Generate a procedural subterranean organ level for the given biome.
-    Returns: (player_spawn_pos, exit_portal, enemy_spawn_points, loot_cysts).
+    Returns: (player_spawn_pos, exit_portal, enemy_spawn_points, loot_cysts, gene_orbs, dna_tablets, secret_boss).
     """
     if seed is not None:
         random.seed(seed)
@@ -231,7 +233,7 @@ def generate_world_level(
         grid, biome.biome_id, biome.depth_level, seed=seed
     )
 
-    # 12. Secret Optional Bio-Bosses
+    # 12. Bosses (Optional Bio-Bosses & Final Primordial Brain Core)
     secret_boss = None
     if biome.biome_id == "BONE_CATACOMBS":
         # Ossuary lair for Giant Helminth in deep catacombs
@@ -245,6 +247,17 @@ def generate_world_level(
         # Electric synapse shrine for Synaptic Parasite
         grid.carve_circle(w // 2, h - 100, 28, MAT_AIR)
         secret_boss = SynapticParasite(float(w // 2), float(h - 100))
+    elif biome.biome_id == "PRIMORDIAL_CORE":
+        # Final Brain Core Boss in central chamber
+        secret_boss = BrainCoreBoss(float(w // 2), float(h // 2), orbs_collected=orbs_collected)
+
+    # 13. Surface Cosmic Ascent Portal (Biome 1: Epidermis ceiling)
+    if biome.biome_id == "EPIDERMIS":
+        from py_noita.world.endings import SurfaceAscentPortal
+        grid.fill_rect(w // 2 - 25, 12, 50, 24, MAT_AIR)
+        grid.ascent_portal = SurfaceAscentPortal(float(w // 2), 24.0)
+    else:
+        grid.ascent_portal = None
 
     return (spawn_x, spawn_y), exit_portal, enemy_spawns, loot_cysts, gene_orbs, dna_tablets, secret_boss
 

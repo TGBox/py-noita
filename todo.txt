@@ -56,10 +56,11 @@
         * Die Ur-Fresszelle (Kolossaler Amöben-Titan in der Gallen-Lagune).
         * Der Synaptische Parasit (Teleportierender Neuro-Wächter).
 
-[ ] (B) [GAMEPLAY] Drei alternative Endsequenzen und Endgame-Quests.
+[x] (B) [GAMEPLAY] Drei alternative Endsequenzen und Endgame-Quests.
     - Ende 1 (Standard): Zerstörung des Ur-Zentrums (Wirtstod).
     - Ende 2 (Symbiose): Aktivierung aller 11 DNA-Orbs im Nervenzentrum (Vollständige Verschmelzung).
     - Ende 3 (Kosmische Metamorphose): Aufstieg zur Wirts-Außenhaut mit dem Ur-Genom.
+
 
 # ------------------------------------------------------------------------------
 # MEILENSTEIN 3: GEN-ARSENAL (120+ GENE) & DEEP WAND-DECKBUILDING

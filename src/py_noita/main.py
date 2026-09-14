@@ -54,10 +54,20 @@ from py_noita.weapons.deck_evaluator import evaluate_cannula_fire
 from py_noita.weapons.gene import GENE_DICT
 from py_noita.weapons.projectile import Projectile
 from py_noita.world.biome import ALL_BIOMES, Biome
+from py_noita.world.endings import (
+    ENDING_COSMIC_METAMORPHOSIS,
+    ENDING_HOST_DEATH,
+    ENDING_NONE,
+    ENDING_SYMBIOSIS,
+    ENDINGS,
+    AscentReturnGateway,
+    SurfaceAscentPortal,
+)
 from py_noita.world.generator import LootCyst, WorldPortal, generate_world_level
 from py_noita.world.incubation_node import IncubationNode
 from py_noita.world.secrets import DnaTablet, GeneOrb
 from py_noita.world.streamer import WorldStreamer
+
 
 
 # Game States
@@ -121,6 +131,13 @@ class Game:
         self.incubation_node: Optional[IncubationNode] = None
         self.last_input: Optional[Any] = None
 
+        # Endings & Endgame Quest State
+        self.ending_id: int = ENDING_NONE
+        self.has_primordial_genome: bool = False
+        self.ascent_portal: Optional[SurfaceAscentPortal] = None
+        self.ascent_return_gateway: Optional[AscentReturnGateway] = None
+        self.core_boss_defeated: bool = False
+
         # Statistics
         self.kills_this_run: int = 0
         self.earned_mutagen: int = 0
@@ -132,6 +149,7 @@ class Game:
         self.entering_seed: bool = False
         self.seed_input_str: str = ""
         self.streamer: Optional[WorldStreamer] = None
+
 
     @property
     def current_biome(self) -> Biome:
@@ -171,6 +189,10 @@ class Game:
         self.kills_this_run = 0
         self.earned_mutagen = 0
         self.is_victory = False
+        self.ending_id = ENDING_NONE
+        self.has_primordial_genome = False
+        self.core_boss_defeated = False
+        self.ascent_return_gateway = None
         self.perk_manager = PerkManager()
         self.projectiles.clear()
         self.explosion_debris.clear()
@@ -234,16 +256,21 @@ class Game:
         self.current_biome_index = biome_index
         biome = self.current_biome
 
-        # Generate cavern grid with deterministic seed
+        # Generate cavern grid with deterministic seed & scaled boss hp by DNA orbs
         level_seed = self.world_seed + biome_index * 1337
+        orbs_cnt = self.player.orbs_collected if self.player else 0
         spawn_pos, portal, enemy_spawns, loot, orbs, tablets, boss = generate_world_level(
-            self.grid, biome, physics_world=self.physics_world, seed=level_seed
+            self.grid, biome, physics_world=self.physics_world, seed=level_seed, orbs_collected=orbs_cnt
         )
         self.exit_portal = portal
         self.loot_cysts = loot
         self.gene_orbs = orbs
         self.dna_tablets = tablets
         self.secret_boss = boss
+        self.ascent_portal = getattr(self.grid, "ascent_portal", None)
+        if biome.biome_id != "PRIMORDIAL_CORE":
+            self.ascent_return_gateway = None
+
 
         # Create/relocate player
         if self.player is None:
@@ -304,7 +331,22 @@ class Game:
         self.projectiles.clear()
         self.audio.play("pickup", volume=0.9)
 
+    def trigger_ending(self, ending_id: int) -> None:
+        """Trigger one of the three alternative narrative endings."""
+        self.ending_id = ending_id
+        self.is_victory = True
+        bonus = ENDINGS.get(ending_id, ENDINGS[ENDING_HOST_DEATH]).bonus_mutagen
+        self.earned_mutagen = self.codex.record_run(
+            self.current_biome_index + 1,
+            self.kills_this_run,
+            self.player.biomass_currency if self.player else 0,
+        ) + bonus
+        self.codex.mutagen_essence += bonus
+        self.codex.save()
+        self.state = STATE_GAME_OVER
+
     def run(self) -> None:
+
         """Master execution loop."""
         running = True
         while running:
@@ -584,9 +626,44 @@ class Game:
                 self.projectiles.append(bp)
             self.enemies.extend(b_minions)
 
+        # Check secret boss defeat (Acquire Primordial Genome upon Brain Core destruction)
+        if self.secret_boss and not self.secret_boss.alive:
+            if getattr(self.secret_boss, "enemy_type", "") == "BRAIN_CORE_BOSS":
+                if not self.core_boss_defeated:
+                    self.core_boss_defeated = True
+                    self.has_primordial_genome = True
+                    self.particles.spawn_spore_puff(self.secret_boss.center_x, self.secret_boss.center_y, count=60)
+                    self.ascent_return_gateway = AscentReturnGateway(self.secret_boss.center_x + 70, self.secret_boss.center_y)
+
+        # 7c. Check Surface Cosmic Ascent Portal (Ending 3: Cosmic Metamorphosis)
+        if self.ascent_portal:
+            self.ascent_portal.update()
+            if self.ascent_portal.is_player_inside(self.player.center_x, self.player.center_y):
+                if self.has_primordial_genome:
+                    self.trigger_ending(ENDING_COSMIC_METAMORPHOSIS)
+                    return
+
+        # 7d. Check Ascent Return Gateway (Back to Biome 1)
+        if self.ascent_return_gateway:
+            self.ascent_return_gateway.update()
+            if self.ascent_return_gateway.is_player_inside(self.player.center_x, self.player.center_y):
+                self.load_biome_level(0)
+                self.audio.play("pickup", volume=1.0)
+                return
+
         # 8. Check Exit Portal
         if self.exit_portal and self.exit_portal.is_player_inside(self.player.center_x, self.player.center_y):
-            self.enter_incubation_node()
+            if self.current_biome.biome_id == "PRIMORDIAL_CORE":
+                if self.core_boss_defeated or (self.secret_boss and not self.secret_boss.alive):
+                    if self.player.orbs_collected >= 11:
+                        self.trigger_ending(ENDING_SYMBIOSIS)
+                        return
+                    else:
+                        self.trigger_ending(ENDING_HOST_DEATH)
+                        return
+            else:
+                self.enter_incubation_node()
+
 
         # 9. Camera & Particles
         self.camera.update(
@@ -729,6 +806,15 @@ class Game:
             pygame.draw.circle(surf, (180, 50, 240), (psx, psy), int(self.exit_portal.radius + pulse), 2)
             pygame.draw.circle(surf, (255, 120, 255), (psx, psy), int(self.exit_portal.radius * 0.5))
 
+        # Surface Cosmic Ascent Portal (Biome 1)
+        if self.ascent_portal:
+            self.ascent_portal.draw(surf, cam_x, cam_y, self.font)
+
+        # Core Ascent Return Gateway (Biome 8 post-boss)
+        if self.ascent_return_gateway:
+            self.ascent_return_gateway.draw(surf, cam_x, cam_y, self.font)
+
+
         # Incubation node room elements
         if self.state == STATE_INCUBATION and self.incubation_node:
             self.incubation_node.draw(surf, cam_x, cam_y, self.font)
@@ -833,8 +919,11 @@ class Game:
             self.player.biomass_currency if self.player else 0,
             self.earned_mutagen,
             self.codex.mutagen_essence,
+            ending_id=self.ending_id,
+            orbs_collected=self.player.orbs_collected if self.player else 0,
         )
         self.renderer.present(self.screen)
+
 
 
 def main() -> None:

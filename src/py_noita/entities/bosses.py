@@ -317,6 +317,114 @@ class SynapticParasite(Enemy):
             pygame.draw.line(surface, (90, 240, 255), (cx, cy), (tx, ty), 2)
 
 
+class BrainCoreBoss(Enemy):
+    """Final Encounter Boss in Biom 8 (Das Ur-Zentrum).
+    Stats and attack speed scale heavily with player's collected DNA Orbs!
+    """
+
+    def __init__(self, x: float, y: float, orbs_collected: int = 0):
+        scaling = 1.0 + 0.18 * max(0, orbs_collected)
+        scaled_hp = round(600.0 * scaling, 1)
+
+        super().__init__(
+            x, y,
+            enemy_type="BRAIN_CORE_BOSS",
+            hp=scaled_hp,
+            width=40,
+            height=40,
+            blood_mat=MAT_MUTAGEN,
+            biomass_value=500,
+        )
+        self.scaling = scaling
+        self.orbs_buff = orbs_collected
+        self.attack_timer: float = 2.0
+        self.wave_timer: float = 5.0
+        self.boss_title = f"DER UR-GEHIRNKERN // WIRTS-BEWUSSTSEIN (ORBS: {orbs_collected}/11)"
+        self.dropped_genome: bool = False
+
+    def update_boss(
+        self,
+        player,
+        grid: SimulationGrid,
+        dt: float,
+    ) -> Tuple[List[Projectile], List[Enemy]]:
+        if not self.alive or not player.alive:
+            return [], []
+
+        spawned_projs: List[Projectile] = []
+        spawned_minions: List[Enemy] = []
+
+        dx = player.center_x - self.center_x
+        dy = player.center_y - self.center_y
+        dist = math.hypot(dx, dy)
+
+        self.anim_time += 0.1
+        self.y += math.sin(self.anim_time * 1.8) * 0.4
+
+        # Primary attack: Synaptic plasma beam burst
+        self.attack_timer -= dt * (1.0 + 0.08 * self.orbs_buff)
+        if self.attack_timer <= 0.0 and dist < 360:
+            self.attack_timer = random.uniform(2.0, 3.2)
+            angle = math.atan2(dy, dx)
+            for spread in (-0.2, 0.0, 0.2):
+                p = Projectile(
+                    x=self.center_x,
+                    y=self.center_y,
+                    vx=math.cos(angle + spread) * 7.2,
+                    vy=math.sin(angle + spread) * 7.2,
+                    damage=18.0 * (1.0 + 0.08 * self.orbs_buff),
+                    lifetime=75,
+                    radius=3.5,
+                    color=(220, 50, 255),
+                    owner="ENEMY",
+                )
+                spawned_projs.append(p)
+
+        # Secondary attack: Radial mutagen shockwave
+        self.wave_timer -= dt * (1.0 + 0.05 * self.orbs_buff)
+        if self.wave_timer <= 0.0 and dist < 320:
+            self.wave_timer = random.uniform(5.5, 7.5)
+            num_bolts = 12 if self.orbs_buff < 6 else 16
+            for i in range(num_bolts):
+                ang = (i / float(num_bolts)) * math.pi * 2.0
+                p = Projectile(
+                    x=self.center_x,
+                    y=self.center_y,
+                    vx=math.cos(ang) * 5.0,
+                    vy=math.sin(ang) * 5.0,
+                    damage=14.0,
+                    lifetime=80,
+                    radius=3.0,
+                    color=(40, 220, 255),
+                    owner="ENEMY",
+                )
+                spawned_projs.append(p)
+
+            if len(spawned_minions) < 2:
+                spawned_minions.append(Antibody(self.center_x + random.randint(-20, 20), self.center_y - 20))
+
+        return spawned_projs, spawned_minions
+
+    def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
+        if not self.alive:
+            return
+        sx = int(self.x - cam_x)
+        sy = int(self.y - cam_y)
+
+        pulse = math.sin(self.anim_time * 3.0) * 3.0
+        rect = pygame.Rect(
+            sx - int(pulse // 2), sy - int(pulse // 2),
+            int(self.width + pulse), int(self.height + pulse)
+        )
+        pygame.draw.ellipse(surface, (180, 25, 90), rect)
+        pygame.draw.ellipse(surface, (230, 60, 255), rect, 2)
+
+        cx = sx + self.width // 2
+        cy = sy + self.height // 2
+        pygame.draw.circle(surface, (40, 200, 240), (cx, cy), 12)
+        pygame.draw.circle(surface, (255, 255, 255), (cx, cy), 5)
+
+
 def draw_boss_health_bar(
     surface: pygame.Surface,
     boss: Enemy,
