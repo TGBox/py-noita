@@ -113,7 +113,7 @@
     - Blutspritzer und Schleim färben Gewebewände permanent ein (Decal-Map).
     - Brandnarben und Rußflecken an verkohltem Gewebe.
 
-[ ] (B) [RENDER] Dynamische 2D-Schattenwürfe (Raymarched 2D Light Shadows).
+[x] (B) [RENDER] Dynamische 2D-Schattenwürfe (Raymarched 2D Light Shadows).
     - Biolumineszierende Lichtquellen werfen weiche Schatten hinter Knochen- und Gewebehindernissen.
 
 # ------------------------------------------------------------------------------

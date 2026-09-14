@@ -1,9 +1,8 @@
-"""Bioluminescent dynamic lighting engine for Py-Noita."""
-
 import math
 from typing import List, Tuple
 import pygame
 import numpy as np
+from numba import njit
 
 from py_noita.config import (
     COLOR_ACID_GLOW,
@@ -19,11 +18,54 @@ from py_noita.simulation.materials import (
     MAT_MUTAGEN,
     MAT_NERVE,
     PROP_GLOW,
+    PROP_STATE,
+    STATE_SOLID,
 )
+
+NUM_SHADOW_RAYS = 96
+ANGLE_STEP = (2.0 * math.pi) / NUM_SHADOW_RAYS
+COS_TABLE = np.array([math.cos(i * ANGLE_STEP) for i in range(NUM_SHADOW_RAYS)], dtype=np.float32)
+SIN_TABLE = np.array([math.sin(i * ANGLE_STEP) for i in range(NUM_SHADOW_RAYS)], dtype=np.float32)
+
+
+@njit(fastmath=True)
+def raymarch_2d_shadows(
+    grid: np.ndarray,
+    prop_state: np.ndarray,
+    lx: float,
+    ly: float,
+    radius: float,
+    cos_table: np.ndarray,
+    sin_table: np.ndarray,
+    out_distances: np.ndarray,
+) -> None:
+    """Raymarch in all directions from light source against solid grid obstacles to compute shadow occlusion."""
+    grid_h = grid.shape[0]
+    grid_w = grid.shape[1]
+    num_rays = len(cos_table)
+
+    for i in range(num_rays):
+        dx = cos_table[i]
+        dy = sin_table[i]
+        hit_dist = radius
+
+        # Step along ray
+        for step in range(2, int(radius) + 1):
+            gx = int(lx + dx * step)
+            gy = int(ly + dy * step)
+            if 0 <= gx < grid_w and 0 <= gy < grid_h:
+                if prop_state[grid[gy, gx]] == 1:  # STATE_SOLID
+                    hit_dist = float(step)
+                    break
+            else:
+                hit_dist = float(step)
+                break
+        out_distances[i] = hit_dist
 
 
 class LightSource:
-    """A point light source with position, radius, color, and intensity."""
+    """A point light source with position, radius, color, intensity, and dynamic 2D shadows."""
+
     def __init__(
         self,
         world_x: float,
@@ -31,16 +73,18 @@ class LightSource:
         radius: float,
         color: Tuple[int, int, int],
         intensity: float = 1.0,
+        cast_shadows: bool = True,
     ):
         self.world_x = world_x
         self.world_y = world_y
         self.radius = radius
         self.color = color
         self.intensity = intensity
+        self.cast_shadows = cast_shadows
 
 
 class LightingEngine:
-    """Renders dark cavern darkness with dynamic bioluminescent light sources."""
+    """Renders dark cavern darkness with dynamic bioluminescent light sources and 2D raymarched soft shadows."""
 
     def __init__(self, view_width: int, view_height: int):
         self.view_width = view_width
@@ -51,6 +95,8 @@ class LightingEngine:
         self.light_surface = pygame.Surface((view_width, view_height))
         # Precomputed circular gradient light textures
         self._light_cache = {}
+        # Pre-allocated raymarching distance buffer
+        self._ray_buffer = np.zeros(NUM_SHADOW_RAYS, dtype=np.float32)
 
     def resize(self, view_width: int, view_height: int) -> None:
         """Resize lighting surface when resolution changes."""
@@ -89,11 +135,11 @@ class LightingEngine:
         lights: List[LightSource],
         grid_grid: np.ndarray,
     ) -> None:
-        """Draw dynamic bioluminescence and darkness onto dest_surface."""
+        """Draw dynamic bioluminescence, 2D raymarched shadows, and ambient darkness onto dest_surface."""
         # 1. Fill light surface with ambient cavern color
         self.light_surface.fill(self.ambient_darkness)
 
-        # 2. Sample bright glowing grid cells (stride 4 for fast sampling)
+        # 2. Sample bright glowing grid cells (stride 5 for fast ambient bioluminescence)
         step = 5
         y_max = min(grid_grid.shape[0] - 1, cam_y + self.view_height)
         x_max = min(grid_grid.shape[1] - 1, cam_x + self.view_width)
@@ -124,7 +170,7 @@ class LightingEngine:
                         special_flags=pygame.BLEND_ADD,
                     )
 
-        # 3. Blit entity lights (Player bioluminescence, projectiles, explosions)
+        # 3. Blit entity lights with dynamic 2D raymarched shadows
         for light in lights:
             sx = int(light.world_x - cam_x)
             sy = int(light.world_y - cam_y)
@@ -132,12 +178,45 @@ class LightingEngine:
 
             # Viewport culling
             if -rad <= sx <= self.view_width + rad and -rad <= sy <= self.view_height + rad:
-                light_tex = self._get_radial_light(rad, light.color, light.intensity)
-                self.light_surface.blit(
-                    light_tex,
-                    (sx - rad, sy - rad),
-                    special_flags=pygame.BLEND_ADD,
-                )
+                if light.cast_shadows and rad >= 8:
+                    # 1. Raymarch 2D shadow distance map
+                    raymarch_2d_shadows(
+                        grid_grid,
+                        PROP_STATE,
+                        light.world_x,
+                        light.world_y,
+                        float(rad),
+                        COS_TABLE,
+                        SIN_TABLE,
+                        self._ray_buffer,
+                    )
+
+                    # 2. Build local visibility polygon
+                    diam = rad * 2
+                    light_surf = pygame.Surface((diam, diam), pygame.SRCALPHA)
+                    poly = [(float(rad), float(rad))]
+                    for i in range(NUM_SHADOW_RAYS):
+                        px = float(rad + COS_TABLE[i] * self._ray_buffer[i])
+                        py = float(rad + SIN_TABLE[i] * self._ray_buffer[i])
+                        poly.append((px, py))
+
+                    # 3. Mask radial light with visibility polygon for soft shadows
+                    pygame.draw.polygon(light_surf, (255, 255, 255, 255), poly)
+                    radial_tex = self._get_radial_light(rad, light.color, light.intensity)
+                    light_surf.blit(radial_tex, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+                    self.light_surface.blit(
+                        light_surf,
+                        (sx - rad, sy - rad),
+                        special_flags=pygame.BLEND_ADD,
+                    )
+                else:
+                    light_tex = self._get_radial_light(rad, light.color, light.intensity)
+                    self.light_surface.blit(
+                        light_tex,
+                        (sx - rad, sy - rad),
+                        special_flags=pygame.BLEND_ADD,
+                    )
 
         # 4. Multiply lighting onto target world surface
         dest_surface.blit(self.light_surface, (0, 0), special_flags=pygame.BLEND_MULT)
