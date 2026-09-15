@@ -165,7 +165,7 @@
     - Lade-Ordner für Community-Mods (`mods/`).
     - API-Hooks zum Registrieren neuer Gene, Materialien, Biome, Feinde und Custom-Stämme.
 
-[ ] (A) [PACKAGING] Standalone Single-File Release-Build (.exe).
+[x] (A) [PACKAGING] Standalone Single-File Release-Build (.exe).
     - Kompilierung via Nuitka / PyInstaller zu einer einzigen, performanten `.exe` ohne Python-Voraussetzung.
     - Automatisierte Build-Pipeline für Windows 64-Bit.
     - Null Abhängigkeiten für den Endbenutzer: Doppelklick und das Spiel läuft out-of-the-box.
