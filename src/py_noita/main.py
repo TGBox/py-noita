@@ -71,6 +71,7 @@ from py_noita.world.secrets import DnaTablet, GeneOrb
 from py_noita.world.streamer import WorldStreamer
 from py_noita.system.save_manager import SaveManager
 from py_noita.system.settings_manager import SettingsManager
+from py_noita.system.steamworks import SteamworksIntegration
 from py_noita.ui.settings_menu import SettingsMenu
 
 
@@ -101,6 +102,11 @@ class Game:
         # Settings & User Preferences
         self.settings_manager = SettingsManager()
         self.settings_menu = SettingsMenu(self.settings_manager)
+        self.steam = SteamworksIntegration()
+        if self.steam.is_deck:
+            deck_profile = self.steam.get_steam_deck_profile()
+            self.settings_manager.hud_scale = deck_profile["hud_scale"]
+            self.settings_manager.gamepad_deadzone = deck_profile["gamepad_deadzone"]
 
         # Audio & Input
         self.audio = AudioManager()
@@ -167,6 +173,7 @@ class Game:
         self.save_manager = SaveManager()
         self.quicksave_notice_timer: float = 0.0
         self.previous_state: str = STATE_MENU
+        self.discovered_tablets: set = set()
 
     def apply_graphics_settings(self) -> None:
         """Apply window mode, resolution, screen shake, and particle density from settings."""
@@ -343,9 +350,13 @@ class Game:
                 self.audio.music.set_theme(biome_index)
             self.audio.music.set_combat_intensity(0.0)
 
+        if biome.biome_id == "BILE_LAGOON":
+            self.steam.unlock_achievement("ACH_BILE_LAGOON", self.audio)
+
     def enter_incubation_node(self) -> None:
         """Generate and enter the Incubation Node sanctuary."""
         self.state = STATE_INCUBATION
+        self.steam.unlock_achievement("ACH_INCUBATION_SANCTUARY", self.audio)
         # Incubation node room
         room_w, room_h = 420, 160
         start_x = (WORLD_WIDTH - room_w) // 2
@@ -397,6 +408,20 @@ class Game:
         ) + bonus
         self.codex.mutagen_essence += bonus
         self.codex.save()
+
+        # Steam Endings & Meta Achievements
+        if ending_id == ENDING_HOST_DEATH:
+            self.steam.unlock_achievement("ACH_ENDING_1", self.audio)
+        elif ending_id == ENDING_SYMBIOSIS:
+            self.steam.unlock_achievement("ACH_ENDING_2", self.audio)
+        elif ending_id == ENDING_COSMIC_METAMORPHOSIS:
+            self.steam.unlock_achievement("ACH_ENDING_3", self.audio)
+
+        if self.codex.mutagen_essence >= 1000:
+            self.steam.unlock_achievement("ACH_MUTAGEN_1000", self.audio)
+        if all(s.strain_id in self.codex.unlocked_strains for s in ALL_STRAINS):
+            self.steam.unlock_achievement("ACH_UNLOCK_ALL_STRAINS", self.audio)
+
         self.state = STATE_GAME_OVER
 
     def run(self) -> None:
@@ -406,6 +431,7 @@ class Game:
         while running:
             dt = self.clock.tick(TARGET_FPS) / 1000.0
             events = pygame.event.get()
+            self.steam.update(dt)
 
             for event in events:
                 if event.type == pygame.QUIT:
@@ -438,6 +464,7 @@ class Game:
                 self._update_settings(events)
                 self._draw_settings()
 
+            self.steam.draw_toasts(self.screen, lang=self.settings_manager.language)
             pygame.display.flip()
 
         pygame.quit()
@@ -764,6 +791,19 @@ class Game:
                 # Visceral anatomical skeleton & permanent wall decals
                 spawn_corpse_skeleton(self.grid, enemy.center_x, enemy.center_y, enemy.enemy_type, enemy.blood_mat)
 
+                # Steam Achievements
+                self.steam.unlock_achievement("ACH_FIRST_KILL", self.audio)
+                if self.kills_this_run >= 50:
+                    self.steam.unlock_achievement("ACH_KILLS_50", self.audio)
+                if self.kills_this_run >= 200:
+                    self.steam.unlock_achievement("ACH_KILLS_200", self.audio)
+                if enemy.enemy_type == "FLESH_WORM":
+                    self.steam.unlock_achievement("ACH_KILL_WORM", self.audio)
+                elif enemy.enemy_type == "PARASITE_SPIDER":
+                    self.steam.unlock_achievement("ACH_KILL_SPIDER", self.audio)
+                elif enemy.enemy_type == "SYNAPTIC_SENTRY":
+                    self.steam.unlock_achievement("ACH_KILL_SENTRY", self.audio)
+
         self.enemies.extend(spawned_minions)
         self.enemies = [e for e in self.enemies if e.alive]
 
@@ -781,6 +821,8 @@ class Game:
                     self.player.biomass_currency += 35
                     self.audio.play_spatial("pickup", cyst.x, cyst.y, self.player.center_x, self.player.center_y, volume=0.9)
                     self.particles.spawn_spore_puff(cyst.x, cyst.y, count=12)
+                    if self.player.biomass_currency >= 200:
+                        self.steam.unlock_achievement("ACH_ABSORB_GOLD", self.audio)
 
         # 7b. Check Gene Orbs & Secret Boss Attacks
         for orb in self.gene_orbs:
@@ -788,6 +830,30 @@ class Game:
             if new_gene:
                 self.audio.play_spatial("pickup", orb.x, orb.y, self.player.center_x, self.player.center_y, volume=1.0)
                 self.particles.spawn_spore_puff(orb.x, orb.y, count=30)
+                self.steam.unlock_achievement("ACH_SECRET_ORB", self.audio)
+                if self.player.orbs_collected >= 5:
+                    self.steam.unlock_achievement("ACH_ALL_ORBS", self.audio)
+
+        # 7b2. Check Ancient DNA Tablets
+        for tab in self.dna_tablets:
+            dist = math.hypot(tab.x - self.player.center_x, tab.y - self.player.center_y)
+            if dist < 36.0:
+                self.discovered_tablets.add(tab.tablet_id)
+                self.steam.unlock_achievement("ACH_DNA_TABLET", self.audio)
+                if len(self.discovered_tablets) >= 5:
+                    self.steam.unlock_achievement("ACH_ALL_TABLETS", self.audio)
+
+        # 7b3. Check Organ Cannulas & Glands
+        if len(self.player.cannulas) >= 4:
+            self.steam.unlock_achievement("ACH_FOUR_CANNULAS", self.audio)
+        distinct_mats = set()
+        for gland in self.player.glands:
+            if gland.current_amount >= gland.max_amount and gland.material_id:
+                self.steam.unlock_achievement("ACH_FIRST_GLAND", self.audio)
+            if gland.current_amount > 10 and gland.material_id:
+                distinct_mats.add(gland.material_id)
+        if len(distinct_mats) >= 4:
+            self.steam.unlock_achievement("ACH_FULL_GLANDS", self.audio)
 
         if self.secret_boss and self.secret_boss.alive and hasattr(self.secret_boss, "update_boss"):
             b_projs, b_minions = self.secret_boss.update_boss(self.player, self.grid, dt)
@@ -804,6 +870,7 @@ class Game:
                     self.has_primordial_genome = True
                     self.particles.spawn_spore_puff(self.secret_boss.center_x, self.secret_boss.center_y, count=60)
                     self.ascent_return_gateway = AscentReturnGateway(self.secret_boss.center_x + 70, self.secret_boss.center_y)
+                    self.steam.unlock_achievement("ACH_CORE_BOSS", self.audio)
 
         # 7c. Check Surface Cosmic Ascent Portal (Ending 3: Cosmic Metamorphosis)
         if self.ascent_portal:
@@ -927,6 +994,8 @@ class Game:
             self.perk_manager.add_perk(new_perk, self.player)
             self.audio.play("pickup", volume=1.0)
             self.particles.spawn_spore_puff(self.player.center_x, self.player.center_y, count=25)
+            if len(self.perk_manager.active_perks) >= 5:
+                self.steam.unlock_achievement("ACH_PERK_SYNERGY", self.audio)
 
         # Check side portal transition (e.g. into Bile Lagoon)
         if self.incubation_node and self.incubation_node.is_player_in_side_portal(self.player):

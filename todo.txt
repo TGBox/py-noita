@@ -156,7 +156,7 @@
     - Skalierbare HUD- und Schriftgröße für Monitore von 1080p bis 4K.
     - Mehrsprachiges Übersetzungssystem (initial Deutsch und Englisch für alle Texte, Tooltips und Beschreibungen).
 
-[ ] (B) [PLATFORM] Steamworks-Integration.
+[x] (B) [PLATFORM] Steamworks-Integration.
     - 40+ Steam Achievements (z.B. "Erste Zersetzung", "Meister-Alchemist", "Wirts-Kollaps", "Ohne Schaden durch die Kavernen").
     - Steam Cloud Save für den Bio-Kodex und Metaprogress.
     - Volle Steam Deck Verifizierung (Gamepad-Layout, Textgröße, 60 FPS Target).
