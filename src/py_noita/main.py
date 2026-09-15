@@ -151,6 +151,7 @@ class Game:
         self.entering_seed: bool = False
         self.seed_input_str: str = ""
         self.streamer: Optional[WorldStreamer] = None
+        self.footstep_timer: float = 0.0
 
 
     @property
@@ -548,7 +549,28 @@ class Game:
                             p.damage = self.perk_manager.modify_damage_dealt(p.damage)
                         self.projectiles.extend(new_projs[:available])
                     self.camera.add_shake(0.12)
-                    self.audio.play("shot", volume=0.8)
+                    launch_snd = "shot"
+                    if active_c.genes:
+                        gid = active_c.genes[0].id
+                        if "CARTILAGE" in gid:
+                            launch_snd = "proj_cartilage_shot"
+                        elif "CYTOKINE" in gid or "LASER" in gid:
+                            launch_snd = "proj_cytokine_laser"
+                        elif "PLASMA" in gid or "TENDRIL" in gid:
+                            launch_snd = "proj_plasma_tendril"
+                        elif "SPORE" in gid:
+                            launch_snd = "proj_spore_mortar"
+                        elif "SLIME" in gid:
+                            launch_snd = "proj_slime_glob"
+                        elif "ACID" in gid:
+                            launch_snd = "proj_acid_dart"
+                        elif "NERVE" in gid or "SYNAPSE" in gid:
+                            launch_snd = "proj_nerve_jolt"
+                        elif "BLOOD" in gid:
+                            launch_snd = "proj_blood_surge"
+                        elif "BONE" in gid:
+                            launch_snd = "proj_bone_boomerang"
+                    self.audio.play(launch_snd, volume=0.8)
 
         # Player Liquid Gland Spraying / Sucking
         if input_state.fire_secondary:
@@ -565,6 +587,22 @@ class Game:
         self.player.update_physics(self.grid, gravity_multiplier=self.current_biome.gravity_multiplier)
         self.perk_manager.update(dt, self.player, self.grid)
 
+        # Procedural footstep sounds matched to ground material (flesh, bone, slime)
+        if self.player.on_ground and abs(self.player.vx) > 12.0:
+            self.footstep_timer += dt
+            if self.footstep_timer >= 0.26:
+                self.footstep_timer = 0.0
+                foot_y = int(self.player.y + self.player.height + 1)
+                ground_mat = self.grid.get_pixel(int(self.player.center_x), foot_y)
+                self.audio.play_footstep(
+                    ground_mat,
+                    self.player.center_x,
+                    float(foot_y),
+                    self.player.center_x,
+                    self.player.center_y,
+                    volume=0.55,
+                )
+
         # 4. Update Projectiles
         targets = self.enemies
         spawned_child_projs: List[Projectile] = []
@@ -578,6 +616,19 @@ class Game:
         self.projectiles = [p for p in self.projectiles if p.alive]
         if len(self.projectiles) > MAX_ACTIVE_PROJECTILES:
             self.projectiles = self.projectiles[:MAX_ACTIVE_PROJECTILES]
+
+        # Process physical projectile impacts on terrain
+        if hasattr(self.grid, "pending_impacts"):
+            for imp_mat, ix, iy in self.grid.pending_impacts:
+                self.audio.play_material_impact(
+                    imp_mat,
+                    float(ix),
+                    float(iy),
+                    self.player.center_x,
+                    self.player.center_y,
+                    volume=0.65,
+                )
+            self.grid.pending_impacts.clear()
 
         # 5. Update Explosion Debris
         self.explosion_debris = [d for d in self.explosion_debris if d.update(self.grid)]

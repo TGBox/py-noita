@@ -284,6 +284,10 @@ class Projectile:
 
     def _handle_impact(self, grid: SimulationGrid, ix: int, iy: int) -> None:
         """Handle impact effects (crater, acid spray, explosion, transmutation)."""
+        struck_mat = grid.get_pixel(ix, iy)
+        if hasattr(grid, "pending_impacts"):
+            grid.pending_impacts.append((struck_mat, ix, iy))
+
         if self.explosion_radius > 0:
             create_explosion(grid, ix, iy, radius=self.explosion_radius, power=self.damage)
         else:

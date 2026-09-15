@@ -1,9 +1,11 @@
 """Audio Manager: Mixer control, sound cache, and sound playback throttling."""
 
+import random
 from typing import Dict, Optional
 import pygame
 
 from py_noita.audio.sound_synth import (
+    build_full_sound_catalog,
     synth_acid_sizzle,
     synth_bone_crack,
     synth_explosion,
@@ -14,6 +16,22 @@ from py_noita.audio.sound_synth import (
 from py_noita.audio.music_engine import AdaptiveMusicEngine, THEME_INCUBATION, THEME_BOSS
 from py_noita.audio.acoustics import AcousticsEngine
 from py_noita.audio.spatial import SpatialAudioEngine
+from py_noita.simulation.materials import (
+    MAT_BONE,
+    MAT_WALL_BONE,
+    MAT_BONE_CHIP,
+    MAT_CHITIN,
+    MAT_BLOOD,
+    MAT_ACID,
+    MAT_BILE,
+    MAT_LYMPH,
+    MAT_PUS,
+    MAT_MUTAGEN,
+    MAT_GOLD,
+    MAT_SPORES,
+    MAT_NERVE,
+    MAT_ASH,
+)
 
 
 class AudioManager:
@@ -29,18 +47,12 @@ class AudioManager:
         self.spatial: SpatialAudioEngine = SpatialAudioEngine()
 
     def _init_audio(self) -> None:
-        """Synthesize and pre-cache all procedural sound effects."""
+        """Synthesize and pre-cache all procedural sound effects (60+ SFX)."""
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
 
-            self.sounds["squelch"] = synth_squelch()
-            self.sounds["acid"] = synth_acid_sizzle()
-            self.sounds["explosion"] = synth_explosion()
-            self.sounds["shot"] = synth_shot()
-            self.sounds["bone_crack"] = synth_bone_crack()
-            self.sounds["pickup"] = synth_pickup()
-
+            self.sounds = build_full_sound_catalog()
             self.initialized = True
         except Exception:
             # Fallback gracefully if audio hardware unavailable in headless env
@@ -113,3 +125,73 @@ class AudioManager:
         if channel:
             self.cooldowns[sound_name] = throttle
         return channel
+
+    def play_footstep(
+        self,
+        surface_mat: int,
+        world_x: float,
+        world_y: float,
+        listener_x: float,
+        listener_y: float,
+        is_crawl: bool = False,
+        volume: float = 0.55,
+    ) -> Optional[pygame.mixer.Channel]:
+        """Play a footstep or crawl sound matched to the ground material."""
+        var = random.randint(1, 3)
+        if is_crawl:
+            s_name = f"crawl_tentacle_{var}"
+        elif surface_mat in (MAT_BONE, MAT_WALL_BONE, MAT_BONE_CHIP, MAT_CHITIN):
+            s_name = f"footstep_bone_{var}"
+        elif surface_mat in (MAT_BLOOD, MAT_ACID, MAT_BILE, MAT_LYMPH, MAT_PUS, MAT_MUTAGEN):
+            s_name = f"footstep_slime_{var}"
+        else:
+            s_name = f"footstep_flesh_{var}"
+
+        return self.play_spatial(
+            s_name,
+            world_x=world_x,
+            world_y=world_y,
+            listener_x=listener_x,
+            listener_y=listener_y,
+            volume=volume,
+            throttle=0.18,
+        )
+
+    def play_material_impact(
+        self,
+        mat: int,
+        world_x: float,
+        world_y: float,
+        listener_x: float,
+        listener_y: float,
+        volume: float = 0.7,
+    ) -> Optional[pygame.mixer.Channel]:
+        """Play a physical impact sound matching the struck material."""
+        if mat in (MAT_BONE, MAT_WALL_BONE, MAT_BONE_CHIP):
+            s_name = "impact_bone"
+        elif mat == MAT_CHITIN:
+            s_name = "impact_chitin"
+        elif mat == MAT_GOLD:
+            s_name = "impact_gold"
+        elif mat == MAT_ACID:
+            s_name = "impact_acid"
+        elif mat in (MAT_BLOOD, MAT_BILE, MAT_LYMPH, MAT_PUS, MAT_MUTAGEN):
+            s_name = "impact_liquid"
+        elif mat == MAT_SPORES:
+            s_name = "impact_spores"
+        elif mat == MAT_NERVE:
+            s_name = "impact_nerve"
+        elif mat == MAT_ASH:
+            s_name = "impact_ash"
+        else:
+            s_name = "impact_flesh"
+
+        return self.play_spatial(
+            s_name,
+            world_x=world_x,
+            world_y=world_y,
+            listener_x=listener_x,
+            listener_y=listener_y,
+            volume=volume,
+            throttle=0.06,
+        )

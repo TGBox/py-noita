@@ -133,7 +133,7 @@
     - Räumliche Ortung: Säurezischen, Feindschritte und ferne Explosionen präzise links/rechts im Stereobild verorten.
     - Lautstärkeabfall mit exponentieller Distanzkurve.
 
-[ ] (B) [AUDIO] Umfassendes Soundeffekt-Arsenal (60+ SFX).
+[x] (B) [AUDIO] Umfassendes Soundeffekt-Arsenal (60+ SFX).
     - Individuelle Geräusche für jedes Projektil, jeden Material-Aufprall und jede Zersetzung.
     - Schmatzende Geh- und Kriechgeräusche passend zum Untergrund (Fleisch vs. Knochen vs. Schleim).
 
