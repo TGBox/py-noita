@@ -109,6 +109,7 @@ class Game:
 
         # Rendering & Camera
         self.renderer = Renderer(self.screen_res)
+        self.renderer.post_processor.photosensitivity_mode = self.settings_manager.photosensitivity_mode
         self.camera = Camera(self.renderer.view_w, self.renderer.view_h)
         self.camera.shake_scale = self.settings_manager.screen_shake
         self.lighting = LightingEngine(self.renderer.view_w, self.renderer.view_h)
@@ -116,7 +117,7 @@ class Game:
         self.particles.density = self.settings_manager.particle_density
 
         # UI
-        self.hud = HUD()
+        self.hud = HUD(scale=self.settings_manager.hud_scale)
         self.editor = CannulaEditor()
         self.game_over_screen = GameOverScreen()
         self.codex = BioCodex()
@@ -183,9 +184,11 @@ class Game:
             self.is_fullscreen = False
 
         self.renderer.set_resolution(self.screen_res)
+        self.renderer.post_processor.photosensitivity_mode = self.settings_manager.photosensitivity_mode
         self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
         self.camera.shake_scale = self.settings_manager.screen_shake
         self.particles.density = self.settings_manager.particle_density
+        self.hud.set_scale(self.settings_manager.hud_scale)
         self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
 
 

@@ -151,7 +151,7 @@
     - Grafik-Optionen: Auflösungsauswahl (Fenster/Vollbild/Borderless), V-Sync, Screen-Shake-Slider (0-100%), Partikeldichte-Regler.
     - Audio-Optionen: Getrennte Lautstärkeregler für Master, Musik, SFX und Umgebungsgeräusche.
 
-[ ] (B) [UI/UX] Barrierefreiheit & Lokalisierung (i18n).
+[x] (B) [UI/UX] Barrierefreiheit & Lokalisierung (i18n).
     - Umschalter für Blitzlicht-Effekte (Photosensitivität).
     - Skalierbare HUD- und Schriftgröße für Monitore von 1080p bis 4K.
     - Mehrsprachiges Übersetzungssystem (initial Deutsch und Englisch für alle Texte, Tooltips und Beschreibungen).

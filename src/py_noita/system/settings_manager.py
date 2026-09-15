@@ -92,8 +92,15 @@ class SettingsManager:
         self.sfx_volume: float = 0.8           # 0.0 to 1.0
         self.ambient_volume: float = 0.7       # 0.0 to 1.0
 
+        # 5. Accessibility & Localization (i18n)
+        self.language: str = "de"              # "de" or "en"
+        self.photosensitivity_mode: bool = False
+        self.hud_scale: float = 1.0            # 0.75x to 2.0x
+
         # Load existing if available
         self.load()
+        from py_noita.system.localization import loc
+        loc.set_language(self.language)
 
     def reset_to_defaults(self) -> None:
         """Reset all parameters to factory defaults."""
@@ -114,6 +121,11 @@ class SettingsManager:
         self.music_volume = 0.7
         self.sfx_volume = 0.8
         self.ambient_volume = 0.7
+        self.language = "de"
+        self.photosensitivity_mode = False
+        self.hud_scale = 1.0
+        from py_noita.system.localization import loc
+        loc.set_language(self.language)
         self.save()
 
     def rebind_action(self, action: str, input_value: Union[int, str]) -> None:
@@ -227,6 +239,11 @@ class SettingsManager:
                     "sfx_volume": self.sfx_volume,
                     "ambient_volume": self.ambient_volume,
                 },
+                "accessibility": {
+                    "language": self.language,
+                    "photosensitivity_mode": self.photosensitivity_mode,
+                    "hud_scale": self.hud_scale,
+                },
             }
             tmp_path = self.filepath.with_suffix(".json.tmp")
             with open(tmp_path, "w", encoding="utf-8") as f:
@@ -276,6 +293,14 @@ class SettingsManager:
                 self.music_volume = float(au.get("music_volume", 0.7))
                 self.sfx_volume = float(au.get("sfx_volume", 0.8))
                 self.ambient_volume = float(au.get("ambient_volume", 0.7))
+
+            if "accessibility" in data:
+                acc = data["accessibility"]
+                self.language = str(acc.get("language", "de"))
+                self.photosensitivity_mode = bool(acc.get("photosensitivity_mode", False))
+                self.hud_scale = float(acc.get("hud_scale", 1.0))
+                from py_noita.system.localization import loc
+                loc.set_language(self.language)
 
             return True
         except Exception as e:

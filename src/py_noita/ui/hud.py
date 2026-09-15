@@ -8,11 +8,21 @@ from py_noita.ui.hover_info import HoverTarget
 class HUD:
     """Renders the player's status bars, weapon slots, and liquid glands."""
 
-    def __init__(self):
-        self.font = pygame.font.SysFont("Arial", 12, bold=True)
-        self.large_font = pygame.font.SysFont("Arial", 14, bold=True)
-        self.small_font = pygame.font.SysFont("Arial", 10, bold=True)
-        self.tiny_font = pygame.font.SysFont("Arial", 9)
+    def __init__(self, scale: float = 1.0):
+        self.scale: float = scale
+        self._init_fonts()
+
+    def _init_fonts(self) -> None:
+        """Create resolution/scale-adjusted fonts."""
+        self.font = pygame.font.SysFont("Arial", max(8, int(12 * self.scale)), bold=True)
+        self.large_font = pygame.font.SysFont("Arial", max(9, int(14 * self.scale)), bold=True)
+        self.small_font = pygame.font.SysFont("Arial", max(7, int(10 * self.scale)), bold=True)
+        self.tiny_font = pygame.font.SysFont("Arial", max(6, int(9 * self.scale)))
+
+    def set_scale(self, scale: float) -> None:
+        """Update HUD scaling factor (1.0x for 1080p up to 2.0x for 4K)."""
+        self.scale = max(0.75, min(2.5, scale))
+        self._init_fonts()
 
     def draw(
         self,

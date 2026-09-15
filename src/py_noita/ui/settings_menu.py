@@ -169,7 +169,7 @@ class SettingsMenu:
         elif self.active_tab == TAB_GAMEPAD:
             return 7  # Deadzone, Sensitivity, Invert Y, 4 Buttons
         elif self.active_tab == TAB_GRAPHICS:
-            return 5  # Mode, Resolution, VSync, Screen Shake, Particle Density
+            return 8  # Language, Photosensitivity, HUD Scale, Mode, Resolution, VSync, Screen Shake, Particle Density
         elif self.active_tab == TAB_AUDIO:
             return 5  # Master, Music, SFX, Ambient, Test Sound
         return 0
@@ -190,24 +190,37 @@ class SettingsMenu:
             self.settings.save()
 
         elif self.active_tab == TAB_GRAPHICS:
-            if self.selected_index == 0:  # Window Mode
+            from py_noita.system.localization import loc
+            if self.selected_index == 0:  # Language
+                self.settings.language = "en" if self.settings.language == "de" else "de"
+                loc.set_language(self.settings.language)
+            elif self.selected_index == 1:  # Photosensitivity
+                self.settings.photosensitivity_mode = not self.settings.photosensitivity_mode
+            elif self.selected_index == 2:  # HUD Scale
+                scales = [0.75, 1.0, 1.25, 1.5, 2.0]
+                cur_idx = 1
+                for i, s in enumerate(scales):
+                    if abs(self.settings.hud_scale - s) < 0.01:
+                        cur_idx = i
+                self.settings.hud_scale = scales[(cur_idx + delta) % len(scales)]
+            elif self.selected_index == 3:  # Window Mode
                 modes = ["WINDOWED", "BORDERLESS", "FULLSCREEN"]
                 cur_idx = modes.index(self.settings.window_mode) if self.settings.window_mode in modes else 0
                 self.settings.window_mode = modes[(cur_idx + delta) % len(modes)]
-            elif self.selected_index == 1:  # Resolution
+            elif self.selected_index == 4:  # Resolution
                 res_list = [[1280, 720], [1920, 1080], [2560, 1080]]
                 cur_idx = 0
                 for i, r in enumerate(res_list):
                     if self.settings.resolution == r:
                         cur_idx = i
                 self.settings.resolution = res_list[(cur_idx + delta) % len(res_list)]
-            elif self.selected_index == 2:  # VSync
+            elif self.selected_index == 5:  # VSync
                 self.settings.vsync = not self.settings.vsync
-            elif self.selected_index == 3:  # Screen Shake
+            elif self.selected_index == 6:  # Screen Shake
                 self.settings.screen_shake = round(
                     max(0.0, min(1.0, self.settings.screen_shake + delta * 0.1)), 1
                 )
-            elif self.selected_index == 4:  # Particle Density
+            elif self.selected_index == 7:  # Particle Density
                 self.settings.particle_density = round(
                     max(0.25, min(1.0, self.settings.particle_density + delta * 0.15)), 2
                 )
@@ -249,7 +262,7 @@ class SettingsMenu:
                 self.settings.save()
 
         elif self.active_tab == TAB_GRAPHICS:
-            if self.selected_index in (0, 1, 2):
+            if self.selected_index in (0, 1, 2, 3, 4, 5):
                 self._adjust_value(1)
 
         elif self.active_tab == TAB_AUDIO:
@@ -409,7 +422,18 @@ class SettingsMenu:
             surface.blit(val_surf, (x + w - val_surf.get_width() - 8, ry + 2))
 
     def _draw_graphics_tab(self, surface: pygame.Surface, x: int, y: int, w: int, h: int) -> None:
+        lang_str = "DEUTSCH [DE]" if self.settings.language == "de" else "ENGLISH [EN]"
+        ps_str = "AKTIVIERT (SCHUTZ EIN)" if self.settings.photosensitivity_mode else "DEAKTIVIERT"
+        hud_str = f"{self.settings.hud_scale}x"
+        if self.settings.hud_scale == 1.0:
+            hud_str += " (1080p Standard)"
+        elif self.settings.hud_scale == 2.0:
+            hud_str += " (4K Ultra HD)"
+
         items = [
+            ("Sprache / Language (i18n)", lang_str, None),
+            ("Photosensitivität (Blitzlicht-Schutz)", ps_str, None),
+            ("HUD- & Schrift-Skalierung", hud_str, (self.settings.hud_scale - 0.75) / 1.25),
             ("Fenstermodus", self.settings.window_mode, None),
             ("Basis-Auflösung", f"{self.settings.resolution[0]} x {self.settings.resolution[1]}", None),
             ("Vertikale Synchronisation (V-Sync)", "EIN" if self.settings.vsync else "AUS", None),
@@ -417,7 +441,7 @@ class SettingsMenu:
             ("Partikeldichte (Simulation)", f"{int(self.settings.particle_density * 100)}%", (self.settings.particle_density - 0.25) / 0.75),
         ]
 
-        row_h = 24
+        row_h = 19
         for idx, (label, val_str, slider_frac) in enumerate(items):
             is_selected = (idx == self.selected_index)
             ry = y + idx * row_h

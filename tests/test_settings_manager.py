@@ -139,9 +139,14 @@ class TestSettingsManager(unittest.TestCase):
         menu.handle_event(event_tab3)
         self.assertEqual(menu.active_tab, TAB_GRAPHICS)
 
-        # Adjust window mode
-        cur_mode = self.settings.window_mode
+        # Toggle language at index 0
         event_right = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RIGHT)
+        menu.handle_event(event_right)
+        self.assertEqual(self.settings.language, "en")
+
+        # Adjust window mode at index 3
+        menu.selected_index = 3
+        cur_mode = self.settings.window_mode
         menu.handle_event(event_right)
         self.assertNotEqual(self.settings.window_mode, cur_mode)
 

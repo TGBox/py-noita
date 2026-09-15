@@ -241,6 +241,7 @@ class ShaderPostProcessor:
 
         # Secondary scratch buffer for CPU fallback
         self.scratch_buffer = np.zeros((width, height, 3), dtype=np.uint8)
+        self.photosensitivity_mode: bool = False
 
         # OpenGL GLSL program handle
         self.gl_program = None
@@ -279,9 +280,12 @@ class ShaderPostProcessor:
 
     def add_shockwave(self, uv_x: float, uv_y: float, intensity: float = 1.0) -> None:
         """Trigger an expanding detonation pressure-wave at normalized UV coordinates (0..1)."""
-        self.shockwaves.append(ShockwaveInstance(uv_x, uv_y, intensity))
-        # Trigger immediate chromatic aberration spike
-        self.chromatic_aberration = min(1.0, self.chromatic_aberration + intensity * 0.8)
+        if self.photosensitivity_mode:
+            self.shockwaves.append(ShockwaveInstance(uv_x, uv_y, intensity * 0.4))
+            self.chromatic_aberration = 0.0
+        else:
+            self.shockwaves.append(ShockwaveInstance(uv_x, uv_y, intensity))
+            self.chromatic_aberration = min(1.0, self.chromatic_aberration + intensity * 0.8)
 
     def trigger_detonation(self, world_x: float, world_y: float, cam_x: float, cam_y: float, power: float = 30.0) -> None:
         """Convenience method to trigger shockwave and aberration from world coordinates."""
@@ -298,16 +302,24 @@ class ShaderPostProcessor:
         self.heat_intensity = max(0.0, min(1.0, heat_val))
         self.acid_distortion = max(0.0, min(1.0, acid_val))
 
-        # Chromatic aberration decay
-        if self.chromatic_aberration > 0.0:
-            self.chromatic_aberration = max(0.0, self.chromatic_aberration - 2.2 * dt)
-
-        # Low HP pulse (activates when HP < 25%)
-        if player_hp_ratio < 0.25:
-            target_pulse = (0.25 - player_hp_ratio) / 0.25
-            self.low_hp_pulse = min(1.0, self.low_hp_pulse + 4.0 * dt * target_pulse)
+        if self.photosensitivity_mode:
+            self.chromatic_aberration = 0.0
+            if player_hp_ratio < 0.25:
+                # Steady subtle vignette without rapid strobing
+                self.low_hp_pulse = 0.25
+            else:
+                self.low_hp_pulse = 0.0
         else:
-            self.low_hp_pulse = max(0.0, self.low_hp_pulse - 3.0 * dt)
+            # Chromatic aberration decay
+            if self.chromatic_aberration > 0.0:
+                self.chromatic_aberration = max(0.0, self.chromatic_aberration - 2.2 * dt)
+
+            # Low HP pulse (activates when HP < 25%)
+            if player_hp_ratio < 0.25:
+                target_pulse = (0.25 - player_hp_ratio) / 0.25
+                self.low_hp_pulse = min(1.0, self.low_hp_pulse + 4.0 * dt * target_pulse)
+            else:
+                self.low_hp_pulse = max(0.0, self.low_hp_pulse - 3.0 * dt)
 
         # Update active shockwaves
         self.shockwaves = [sw for sw in self.shockwaves if sw.update(dt)]
