@@ -1,7 +1,7 @@
 """Immune defense cells and rival parasite enemies."""
 
 import math
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import pygame
 import numpy as np
 

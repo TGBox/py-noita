@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import unittest
 
-from build_release import (
+from py_noita.system.packaging import (
     ALL_HIDDEN_IMPORTS,
     bundle_distribution,
     compute_sha256,

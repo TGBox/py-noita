@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 import pygame
 
 from py_noita.simulation.materials import LUT_COLORS, MAT_AIR
