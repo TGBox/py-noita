@@ -145,7 +145,7 @@
     - Fortsetzen des Runs an exakt derselben Stelle beim Spielstart.
     - Permadeath-Löschung des Savegames beim tatsächlichen Tod.
 
-[ ] (A) [UI/UX] Vollständiges Einstellungs- und Konfigurationsmenü.
+[x] (A) [UI/UX] Vollständiges Einstellungs- und Konfigurationsmenü.
     - Tastenbelegung: Komplett freies Remapping aller Tastatur- und Maus-Aktionen.
     - Gamepad-Konfiguration: Deadzone-Kalibrierung, Belegung, Stick-Empfindlichkeit, Invertierung.
     - Grafik-Optionen: Auflösungsauswahl (Fenster/Vollbild/Borderless), V-Sync, Screen-Shake-Slider (0-100%), Partikeldichte-Regler.

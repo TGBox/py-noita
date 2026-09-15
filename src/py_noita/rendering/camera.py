@@ -22,6 +22,7 @@ class Camera:
         self.trauma: float = 0.0
         self.shake_decay: float = 0.04
         self.max_shake_offset: float = 8.0
+        self.shake_scale: float = 1.0
 
         # Look-ahead weight towards mouse aim
         self.look_ahead_weight: float = 0.25
@@ -78,7 +79,7 @@ class Camera:
         if self.trauma > 0.0:
             shake_intensity = self.trauma * self.trauma
             angle = np.random.uniform(0.0, 2.0 * math.pi)
-            dist = shake_intensity * self.max_shake_offset
+            dist = shake_intensity * self.max_shake_offset * self.shake_scale
             shake_x = math.cos(angle) * dist
             shake_y = math.sin(angle) * dist
 

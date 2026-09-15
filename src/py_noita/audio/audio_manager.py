@@ -41,10 +41,25 @@ class AudioManager:
         self.sounds: Dict[str, pygame.mixer.Sound] = {}
         self.cooldowns: Dict[str, float] = {}
         self.initialized: bool = False
+        self.master_volume: float = 0.8
+        self.music_volume: float = 0.7
+        self.sfx_volume: float = 0.8
+        self.ambient_volume: float = 0.7
         self._init_audio()
         self.music: AdaptiveMusicEngine = AdaptiveMusicEngine()
         self.acoustics: AcousticsEngine = AcousticsEngine()
         self.spatial: SpatialAudioEngine = SpatialAudioEngine()
+        if hasattr(self, "music") and self.music:
+            self.music.master_music_volume = self.master_volume * self.music_volume
+
+    def apply_settings(self, settings) -> None:
+        """Apply volume sliders from SettingsManager."""
+        self.master_volume = float(getattr(settings, "master_volume", 0.8))
+        self.music_volume = float(getattr(settings, "music_volume", 0.7))
+        self.sfx_volume = float(getattr(settings, "sfx_volume", 0.8))
+        self.ambient_volume = float(getattr(settings, "ambient_volume", 0.7))
+        if hasattr(self, "music") and self.music:
+            self.music.master_music_volume = self.master_volume * self.music_volume
 
     def _init_audio(self) -> None:
         """Synthesize and pre-cache all procedural sound effects (60+ SFX)."""
@@ -85,7 +100,7 @@ class AudioManager:
         ducking = self.acoustics.heartbeat_ducking if hasattr(self, "acoustics") else 1.0
         muffle = (1.0 - 0.55 * self.acoustics.submerged_factor) if hasattr(self, "acoustics") else 1.0
 
-        effective_vol = max(0.0, min(1.0, volume * ducking * muffle))
+        effective_vol = max(0.0, min(1.0, volume * self.master_volume * self.sfx_volume * ducking * muffle))
         sound = self.sounds[sound_name]
         sound.set_volume(effective_vol)
         sound.play()
@@ -111,6 +126,7 @@ class AudioManager:
         ducking = self.acoustics.heartbeat_ducking if hasattr(self, "acoustics") else 1.0
         muffle = (1.0 - 0.55 * self.acoustics.submerged_factor) if hasattr(self, "acoustics") else 1.0
 
+        effective_base_vol = volume * self.master_volume * self.sfx_volume
         sound = self.sounds[sound_name]
         channel = self.spatial.play_spatial(
             sound,
@@ -118,7 +134,7 @@ class AudioManager:
             world_y=world_y,
             listener_x=listener_x,
             listener_y=listener_y,
-            base_volume=volume,
+            base_volume=effective_base_vol,
             ducking=ducking,
             muffle=muffle,
         )

@@ -70,6 +70,8 @@ from py_noita.world.incubation_node import IncubationNode
 from py_noita.world.secrets import DnaTablet, GeneOrb
 from py_noita.world.streamer import WorldStreamer
 from py_noita.system.save_manager import SaveManager
+from py_noita.system.settings_manager import SettingsManager
+from py_noita.ui.settings_menu import SettingsMenu
 
 
 
@@ -79,6 +81,7 @@ STATE_PLAYING = "PLAYING"
 STATE_INCUBATION = "INCUBATION"
 STATE_TUNING = "TUNING"
 STATE_GAME_OVER = "GAME_OVER"
+STATE_SETTINGS = "SETTINGS"
 
 
 class Game:
@@ -95,15 +98,22 @@ class Game:
         self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
         self.clock = pygame.time.Clock()
 
+        # Settings & User Preferences
+        self.settings_manager = SettingsManager()
+        self.settings_menu = SettingsMenu(self.settings_manager)
+
         # Audio & Input
         self.audio = AudioManager()
-        self.input = InputHandler()
+        self.audio.apply_settings(self.settings_manager)
+        self.input = InputHandler(settings=self.settings_manager)
 
         # Rendering & Camera
         self.renderer = Renderer(self.screen_res)
         self.camera = Camera(self.renderer.view_w, self.renderer.view_h)
+        self.camera.shake_scale = self.settings_manager.screen_shake
         self.lighting = LightingEngine(self.renderer.view_w, self.renderer.view_h)
         self.particles = ParticleSystem()
+        self.particles.density = self.settings_manager.particle_density
 
         # UI
         self.hud = HUD()
@@ -155,6 +165,28 @@ class Game:
         self.footstep_timer: float = 0.0
         self.save_manager = SaveManager()
         self.quicksave_notice_timer: float = 0.0
+        self.previous_state: str = STATE_MENU
+
+    def apply_graphics_settings(self) -> None:
+        """Apply window mode, resolution, screen shake, and particle density from settings."""
+        w, h = self.settings_manager.resolution[0], self.settings_manager.resolution[1]
+        mode = self.settings_manager.window_mode
+        self.screen_res = (w, h)
+        if mode == "FULLSCREEN":
+            self.screen = pygame.display.set_mode(self.screen_res, pygame.FULLSCREEN)
+            self.is_fullscreen = True
+        elif mode == "BORDERLESS":
+            self.screen = pygame.display.set_mode(self.screen_res, pygame.NOFRAME)
+            self.is_fullscreen = False
+        else:
+            self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
+            self.is_fullscreen = False
+
+        self.renderer.set_resolution(self.screen_res)
+        self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
+        self.camera.shake_scale = self.settings_manager.screen_shake
+        self.particles.density = self.settings_manager.particle_density
+        self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
 
 
     @property
@@ -399,10 +431,30 @@ class Game:
             elif self.state == STATE_GAME_OVER:
                 self._update_game_over(events)
                 self._draw_game_over()
+            elif self.state == STATE_SETTINGS:
+                self._update_settings(events)
+                self._draw_settings()
 
             pygame.display.flip()
 
         pygame.quit()
+
+    def _update_settings(self, events) -> None:
+        """Handle settings configuration input and live audio/graphics tweaking."""
+        dt = self.clock.get_time() / 1000.0
+        self.settings_menu.update(dt)
+        for event in events:
+            if self.settings_menu.handle_event(event, self.audio):
+                self.apply_graphics_settings()
+                self.state = self.previous_state
+
+    def _draw_settings(self) -> None:
+        """Render settings menu overlay on top of menu or paused world."""
+        if self.previous_state in (STATE_PLAYING, STATE_INCUBATION, STATE_TUNING) and self.player:
+            self._draw_playing()
+        else:
+            self._draw_menu()
+        self.settings_menu.draw(self.screen)
 
     def _update_menu(self, events) -> None:
         """Handle main menu / strain selection input and world seed entry."""
@@ -448,6 +500,9 @@ class Game:
                     if self.save_manager.has_quicksave():
                         if self.save_manager.load_run(self):
                             self.audio.play("pickup", volume=1.0)
+                elif event.key == pygame.K_o:
+                    self.previous_state = STATE_MENU
+                    self.state = STATE_SETTINGS
                 elif event.key == pygame.K_F1:
                     self.toggle_display_resolution()
                 elif event.key == pygame.K_F11:
@@ -514,7 +569,7 @@ class Game:
         self.screen.blit(seed_surf, (view_w // 2 - seed_surf.get_width() // 2, seed_y))
 
         # Controls info at bottom
-        ctrl_info = self.font.render("[F1] Auflösung (Full HD / Ultrawide)  |  [F11] Vollbild  |  WASD + Maus-Zielen", True, (130, 125, 120))
+        ctrl_info = self.font.render("[O] Einstellungen / Optionen  |  [F1] Auflösung  |  [F11] Vollbild  |  WASD + Maus", True, (150, 140, 160))
         self.screen.blit(ctrl_info, (view_w // 2 - ctrl_info.get_width() // 2, view_h - 40))
 
     def _update_playing(self, dt: float, events) -> None:
@@ -542,6 +597,10 @@ class Game:
             self.toggle_display_resolution()
         if input_state.toggle_inventory:
             self.state = STATE_TUNING
+            return
+        if input_state.pause or any(e.type == pygame.KEYDOWN and e.key == pygame.K_o for e in events):
+            self.previous_state = STATE_PLAYING
+            self.state = STATE_SETTINGS
             return
 
         # F5 Quicksave shortcut
@@ -849,6 +908,10 @@ class Game:
             self.toggle_display_resolution()
         if input_state.toggle_inventory:
             self.state = STATE_TUNING
+            return
+        if input_state.pause or any(e.type == pygame.KEYDOWN and e.key == pygame.K_o for e in events):
+            self.previous_state = STATE_INCUBATION
+            self.state = STATE_SETTINGS
             return
 
         self.player.aim_angle = input_state.aim_angle

@@ -83,10 +83,12 @@ class ParticleSystem:
 
     def __init__(self):
         self.particles: List[Particle] = []
+        self.density: float = 1.0
 
     def spawn_blood_burst(self, x: float, y: float, count: int = 15) -> None:
         """Spawn visceral arterial blood spurts."""
-        for _ in range(count):
+        actual_count = max(1, int(count * self.density))
+        for _ in range(actual_count):
             angle = np.random.uniform(0, 2 * math.pi)
             speed = np.random.uniform(1.0, 4.5)
             col = (
@@ -108,7 +110,8 @@ class ParticleSystem:
 
     def spawn_acid_sparks(self, x: float, y: float, count: int = 12) -> None:
         """Spawn neon acid bubbling droplets and sparks."""
-        for _ in range(count):
+        actual_count = max(1, int(count * self.density))
+        for _ in range(actual_count):
             angle = np.random.uniform(0, 2 * math.pi)
             speed = np.random.uniform(0.8, 3.5)
             col = (
@@ -131,7 +134,8 @@ class ParticleSystem:
 
     def spawn_spore_puff(self, x: float, y: float, count: int = 10) -> None:
         """Spawn floating fungal spore cloud particles."""
-        for _ in range(count):
+        actual_count = max(1, int(count * self.density))
+        for _ in range(actual_count):
             angle = np.random.uniform(0, 2 * math.pi)
             speed = np.random.uniform(0.3, 1.8)
             col = (
