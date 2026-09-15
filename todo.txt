@@ -140,7 +140,7 @@
 # ------------------------------------------------------------------------------
 # MEILENSTEIN 6: PLATTFORM-POLITUR, MENÜS, STEAM & PACKAGING
 # ------------------------------------------------------------------------------
-[ ] (A) [SYSTEM] Mid-Run Quicksave & Crash-Recovery.
+[x] (A) [SYSTEM] Mid-Run Quicksave & Crash-Recovery.
     - Zustand der Welt, Chunks, Spieler, Inventar und Feinde bei Beenden oder Absturz nahtlos serialisieren (JSON/Binär).
     - Fortsetzen des Runs an exakt derselben Stelle beim Spielstart.
     - Permadeath-Löschung des Savegames beim tatsächlichen Tod.

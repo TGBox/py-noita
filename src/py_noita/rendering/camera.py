@@ -31,6 +31,13 @@ class Camera:
         self.view_width = width
         self.view_height = height
 
+    def center_on(self, focus_x: float, focus_y: float) -> None:
+        """Instantly snap camera center onto world coordinates without lerping."""
+        dest_x = focus_x - self.view_width / 2.0
+        dest_y = focus_y - self.view_height / 2.0
+        self.x = max(0.0, min(float(WORLD_WIDTH - self.view_width), dest_x))
+        self.y = max(0.0, min(float(WORLD_HEIGHT - self.view_height), dest_y))
+
     def add_shake(self, amount: float) -> None:
         """Add trauma for screen shake, clamped to 1.0."""
         self.trauma = min(1.0, self.trauma + amount)

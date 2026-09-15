@@ -69,6 +69,7 @@ from py_noita.world.generator import LootCyst, WorldPortal, generate_world_level
 from py_noita.world.incubation_node import IncubationNode
 from py_noita.world.secrets import DnaTablet, GeneOrb
 from py_noita.world.streamer import WorldStreamer
+from py_noita.system.save_manager import SaveManager
 
 
 
@@ -152,6 +153,8 @@ class Game:
         self.seed_input_str: str = ""
         self.streamer: Optional[WorldStreamer] = None
         self.footstep_timer: float = 0.0
+        self.save_manager = SaveManager()
+        self.quicksave_notice_timer: float = 0.0
 
 
     @property
@@ -348,6 +351,7 @@ class Game:
 
     def trigger_ending(self, ending_id: int) -> None:
         """Trigger one of the three alternative narrative endings."""
+        self.save_manager.delete_quicksave()
         self.ending_id = ending_id
         self.is_victory = True
         bonus = ENDINGS.get(ending_id, ENDINGS[ENDING_HOST_DEATH]).bonus_mutagen
@@ -370,6 +374,8 @@ class Game:
 
             for event in events:
                 if event.type == pygame.QUIT:
+                    if self.state in (STATE_PLAYING, STATE_INCUBATION, STATE_TUNING) and self.player and self.player.alive:
+                        self.save_manager.save_run(self)
                     running = False
                 elif event.type == pygame.VIDEORESIZE:
                     self.screen_res = (event.w, event.h)
@@ -438,6 +444,10 @@ class Game:
                     strain = ALL_STRAINS[self.menu_strain_index]
                     if strain.strain_id in self.codex.unlocked_strains:
                         self.start_new_run()
+                elif event.key == pygame.K_c:
+                    if self.save_manager.has_quicksave():
+                        if self.save_manager.load_run(self):
+                            self.audio.play("pickup", volume=1.0)
                 elif event.key == pygame.K_F1:
                     self.toggle_display_resolution()
                 elif event.key == pygame.K_F11:
@@ -458,13 +468,27 @@ class Game:
         mut_surf = self.font.render(f"Mutagen-Essenz (Labor-Konto): {self.codex.mutagen_essence} M", True, (220, 50, 240))
         self.screen.blit(mut_surf, (view_w // 2 - mut_surf.get_width() // 2, 138))
 
+        # Quicksave Resume Prompt (if active run exists)
+        qs_info = self.save_manager.get_quicksave_info()
+        card_y = 175
+        if qs_info:
+            qs_text = f"[C] RUN FORTSETZEN: {qs_info['biome_name']} (HP: {int(qs_info['player_hp'])}/{int(qs_info['player_max_hp'])}) • Seed: {qs_info['world_seed']}"
+            qs_surf = self.font.render(qs_text, True, (80, 255, 210))
+            box_w = qs_surf.get_width() + 24
+            box_h = 24
+            box_x = view_w // 2 - box_w // 2
+            box_y = 160
+            card_y = 194
+            pygame.draw.rect(self.screen, (15, 35, 40), (box_x, box_y, box_w, box_h), border_radius=4)
+            pygame.draw.rect(self.screen, (60, 210, 180), (box_x, box_y, box_w, box_h), 1, border_radius=4)
+            self.screen.blit(qs_surf, (box_x + 12, box_y + 4))
+
         # Strain Card
         strain = ALL_STRAINS[self.menu_strain_index]
         is_unlocked = strain.strain_id in self.codex.unlocked_strains
 
         card_w, card_h = 360, 130
         card_x = view_w // 2 - card_w // 2
-        card_y = 170
         pygame.draw.rect(self.screen, (25, 18, 30), (card_x, card_y, card_w, card_h), border_radius=6)
         pygame.draw.rect(self.screen, (160, 80, 110) if is_unlocked else (70, 60, 75), (card_x, card_y, card_w, card_h), 2, border_radius=6)
 
@@ -495,6 +519,9 @@ class Game:
 
     def _update_playing(self, dt: float, events) -> None:
         """Handle active gameplay frame."""
+        if self.quicksave_notice_timer > 0.0:
+            self.quicksave_notice_timer = max(0.0, self.quicksave_notice_timer - dt)
+
         # 1. Process Input
         cam_x, cam_y = self.camera.get_offset()
         input_state = self.input.process_events(
@@ -516,6 +543,13 @@ class Game:
         if input_state.toggle_inventory:
             self.state = STATE_TUNING
             return
+
+        # F5 Quicksave shortcut
+        for event in events:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
+                if self.save_manager.save_run(self):
+                    self.quicksave_notice_timer = 2.5
+                    self.audio.play("pickup", volume=0.8)
 
         # Weapon / Gland selection
         if input_state.select_cannula is not None and input_state.select_cannula < len(self.player.cannulas):
@@ -784,8 +818,9 @@ class Game:
         hp_ratio = self.player.hp / max(1.0, self.player.max_hp)
         self.renderer.post_processor.update(dt, heat_val=heat_val, acid_val=acid_val, player_hp_ratio=hp_ratio)
 
-        # 10. Check Player Death
+        # 10. Check Player Death (Permadeath: Erase Quicksave)
         if not self.player.alive:
+            self.save_manager.delete_quicksave()
             self.earned_mutagen = self.codex.record_run(
                 self.current_biome_index + 1,
                 self.kills_this_run,
@@ -999,6 +1034,10 @@ class Game:
             mouse_pos=mouse_pos,
             active_boss=self.secret_boss if (self.secret_boss and self.secret_boss.alive) else None,
         )
+
+        if self.quicksave_notice_timer > 0.0:
+            qs_msg = self.font.render("[F5 QUICKSAVE GESPEICHERT]", True, (80, 255, 190))
+            surf.blit(qs_msg, (self.renderer.view_w // 2 - qs_msg.get_width() // 2, 8))
 
         # 5. Present to window / Fullscreen display
         self.renderer.present(self.screen)
