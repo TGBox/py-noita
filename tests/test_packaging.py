@@ -35,7 +35,7 @@ class TestPackagingPipeline(unittest.TestCase):
     def test_hidden_imports_catalog(self):
         """Verify all critical engine packages and third-party libs are included in hidden imports."""
         self.assertIn("py_noita.main", ALL_HIDDEN_IMPORTS)
-        self.assertIn("py_noita.simulation.sand_simulation", ALL_HIDDEN_IMPORTS)
+        self.assertIn("py_noita.simulation.falling_sand", ALL_HIDDEN_IMPORTS)
         self.assertIn("py_noita.weapons.gene", ALL_HIDDEN_IMPORTS)
         self.assertIn("py_noita.rendering.renderer", ALL_HIDDEN_IMPORTS)
         self.assertIn("py_noita.system.steamworks", ALL_HIDDEN_IMPORTS)
