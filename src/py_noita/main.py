@@ -72,6 +72,7 @@ from py_noita.world.streamer import WorldStreamer
 from py_noita.system.save_manager import SaveManager
 from py_noita.system.settings_manager import SettingsManager
 from py_noita.system.steamworks import SteamworksIntegration
+from py_noita.system.mod_manager import ModManager
 from py_noita.ui.settings_menu import SettingsMenu
 
 
@@ -98,6 +99,10 @@ class Game:
         self.screen_res = RES_WINDOWED_1080
         self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
         self.clock = pygame.time.Clock()
+
+        # Community Modding System
+        self.mod_manager = ModManager()
+        self.mod_manager.load_all_mods()
 
         # Settings & User Preferences
         self.settings_manager = SettingsManager()
@@ -297,6 +302,9 @@ class Game:
             if bonus_perk:
                 self.perk_manager.add_perk(bonus_perk, self.player)
 
+        # Modding lifecycle hook
+        self.mod_manager.api.trigger_hook("on_run_start", self)
+
         self.state = STATE_PLAYING
 
     def load_biome_level(self, biome_index: int) -> None:
@@ -352,6 +360,9 @@ class Game:
 
         if biome.biome_id == "BILE_LAGOON":
             self.steam.unlock_achievement("ACH_BILE_LAGOON", self.audio)
+
+        # Modding lifecycle hook
+        self.mod_manager.api.trigger_hook("on_biome_loaded", biome)
 
     def enter_incubation_node(self) -> None:
         """Generate and enter the Incubation Node sanctuary."""

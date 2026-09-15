@@ -161,7 +161,7 @@
     - Steam Cloud Save für den Bio-Kodex und Metaprogress.
     - Volle Steam Deck Verifizierung (Gamepad-Layout, Textgröße, 60 FPS Target).
 
-[ ] (B) [MODDING] Lua- / Python-Modding-Schnittstelle.
+[x] (B) [MODDING] Lua- / Python-Modding-Schnittstelle.
     - Lade-Ordner für Community-Mods (`mods/`).
     - API-Hooks zum Registrieren neuer Gene, Materialien, Biome, Feinde und Custom-Stämme.
 

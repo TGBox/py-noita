@@ -402,8 +402,13 @@ class SynapticSentry(Enemy):
             pygame.draw.line(surface, (100, 240, 255), (cx, cy), (ax, ay), 1)
 
 
+CUSTOM_ENEMY_FACTORIES: Dict[str, Any] = {}
+
+
 def create_enemy(etype: str, x: float, y: float) -> Enemy:
     """Factory method to instantiate enemies."""
+    if etype in CUSTOM_ENEMY_FACTORIES:
+        return CUSTOM_ENEMY_FACTORIES[etype](x, y)
     if etype == "MACROPHAGE":
         return Macrophage(x, y)
     elif etype == "ANTIBODY":
