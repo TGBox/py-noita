@@ -98,6 +98,7 @@ class Game:
         self.is_ultrawide = False
         self.screen_res = RES_WINDOWED_1080
         self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
+        self.screen_res = self.screen.get_size()
         self.clock = pygame.time.Clock()
 
         # Community Modding System
@@ -195,6 +196,7 @@ class Game:
             self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
             self.is_fullscreen = False
 
+        self.screen_res = self.screen.get_size()
         self.renderer.set_resolution(self.screen_res)
         self.renderer.post_processor.photosensitivity_mode = self.settings_manager.photosensitivity_mode
         self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
@@ -218,6 +220,7 @@ class Game:
             self.screen_res = RES_WINDOWED_UW if self.is_ultrawide else RES_WINDOWED_1080
             self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
 
+        self.screen_res = self.screen.get_size()
         self.renderer.set_resolution(self.screen_res)
         self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
         self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
@@ -232,6 +235,7 @@ class Game:
             self.screen_res = RES_WINDOWED_UW if self.is_ultrawide else RES_WINDOWED_1080
             self.screen = pygame.display.set_mode(self.screen_res, pygame.RESIZABLE)
 
+        self.screen_res = self.screen.get_size()
         self.renderer.set_resolution(self.screen_res)
         self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
         self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
@@ -1078,7 +1082,7 @@ class Game:
                 elif event.key == pygame.K_ESCAPE:
                     self.state = STATE_MENU
 
-    def _draw_playing(self) -> None:
+    def _draw_playing(self, present_to_screen: bool = True) -> pygame.Surface:
         """Render playing world, entities, lighting, and HUD."""
         cam_x, cam_y = self.camera.get_offset()
 
@@ -1103,19 +1107,6 @@ class Game:
         # Core Ascent Return Gateway (Biome 8 post-boss)
         if self.ascent_return_gateway:
             self.ascent_return_gateway.draw(surf, cam_x, cam_y, self.font)
-
-
-        # Incubation node room elements
-        if self.state == STATE_INCUBATION and self.incubation_node:
-            self.incubation_node.draw(surf, cam_x, cam_y, self.font)
-
-        # Ancient DNA Lore Tablets
-        for tab in self.dna_tablets:
-            tab.draw(surf, cam_x, cam_y, self.font)
-
-        # Gene Orbs
-        for orb in self.gene_orbs:
-            orb.draw(surf, cam_x, cam_y, self.font)
 
         # Loot Cysts
         for cyst in self.loot_cysts:
@@ -1155,7 +1146,20 @@ class Game:
 
         self.lighting.render(surf, cam_x, cam_y, lights, self.grid.grid)
 
-        # 4. In-Game HUD & Hover Inspection
+        # 4. Post-processing pass: Apply shaders to world BEFORE drawing UI, text & HUD
+        render_surf = self.renderer.get_processed_world_surface()
+
+        # 4b. Draw in-world text labels on render_surf so they are never warped
+        if self.state == STATE_INCUBATION and self.incubation_node:
+            self.incubation_node.draw(render_surf, cam_x, cam_y, self.font)
+
+        for tab in self.dna_tablets:
+            tab.draw(render_surf, cam_x, cam_y, self.font)
+
+        for orb in self.gene_orbs:
+            orb.draw(render_surf, cam_x, cam_y, self.font)
+
+        # 4c. In-Game HUD & Hover Inspection on clean render_surf
         hover_target = None
         mouse_pos = None
         if self.last_input is not None and self.last_input.mouse_in_bounds:
@@ -1172,7 +1176,7 @@ class Game:
             )
 
         self.hud.draw(
-            surf,
+            render_surf,
             self.player,
             self.current_biome.name,
             self.current_biome.depth_level,
@@ -1183,15 +1187,16 @@ class Game:
 
         if self.quicksave_notice_timer > 0.0:
             qs_msg = self.font.render("[F5 QUICKSAVE GESPEICHERT]", True, (80, 255, 190))
-            surf.blit(qs_msg, (self.renderer.view_w // 2 - qs_msg.get_width() // 2, 8))
+            render_surf.blit(qs_msg, (self.renderer.view_w // 2 - qs_msg.get_width() // 2, 8))
 
         # 5. Present to window / Fullscreen display
-        self.renderer.present(self.screen)
+        if present_to_screen:
+            self.renderer.present(self.screen, render_surf)
+        return render_surf
 
     def _draw_tuning(self) -> None:
         """Render organ-tuning deckbuilder on top of paused world."""
-        # Draw world first
-        self._draw_playing()
+        render_surf = self._draw_playing(present_to_screen=False)
 
         # Overlay tuning editor
         dest = self.renderer.dest_rect
@@ -1199,14 +1204,14 @@ class Game:
         sim_mx = int(((mouse_px - dest.left) / max(1, dest.width)) * self.renderer.view_w)
         sim_my = int(((mouse_py - dest.top) / max(1, dest.height)) * self.renderer.view_h)
 
-        self.editor.draw(self.renderer.sim_surface, self.player, (sim_mx, sim_my))
-        self.renderer.present(self.screen)
+        self.editor.draw(render_surf, self.player, (sim_mx, sim_my))
+        self.renderer.present(self.screen, render_surf)
 
     def _draw_game_over(self) -> None:
         """Render Game Over screen."""
-        self._draw_playing()
+        render_surf = self._draw_playing(present_to_screen=False)
         self.game_over_screen.draw(
-            self.renderer.sim_surface,
+            render_surf,
             self.is_victory,
             self.current_biome_index + 1,
             self.kills_this_run,
@@ -1216,7 +1221,7 @@ class Game:
             ending_id=self.ending_id,
             orbs_collected=self.player.orbs_collected if self.player else 0,
         )
-        self.renderer.present(self.screen)
+        self.renderer.present(self.screen, render_surf)
 
 
 

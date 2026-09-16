@@ -98,6 +98,19 @@ class TestShadersAndPostProcessing(unittest.TestCase):
         center = screen.get_at((160, 90))
         self.assertGreater(center.b, 0)
 
+    def test_renderer_present_with_resized_destination_surface(self):
+        """Renderer handles destination surface resized by OS (e.g. window borders) without ValueError."""
+        renderer = Renderer(screen_res=(2560, 1080))
+        # Simulated OS-resized window (e.g. 2560x1017)
+        resized_screen = pygame.Surface((2560, 1017))
+        renderer.sim_surface.fill((40, 60, 80))
+        
+        # Must not throw ValueError
+        renderer.present(resized_screen)
+        self.assertEqual(renderer.screen_res, (2560, 1017))
+        self.assertEqual(renderer.dest_rect.height, 1017)
+        self.assertLessEqual(renderer.dest_rect.width, 2560)
+
 
 if __name__ == "__main__":
     unittest.main()

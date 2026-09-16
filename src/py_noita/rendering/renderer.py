@@ -318,12 +318,21 @@ class Renderer:
         )
         pygame.surfarray.blit_array(self.sim_surface, self.surfarray_buffer)
 
-    def present(self, screen: pygame.Surface) -> None:
-        """Scale internal simulation surface up to the display window with shader post-processing."""
-        render_surf = self.post_processor.apply_post_processing(self.sim_surface)
+    def get_processed_world_surface(self) -> pygame.Surface:
+        """Apply post-processing shaders to sim_surface and return composited world surface."""
+        return self.post_processor.apply_post_processing(self.sim_surface)
 
-        if self.dest_rect.size == self.screen_res:
-            pygame.transform.scale(render_surf, self.screen_res, screen)
+    def present(self, screen: pygame.Surface, surface_to_present: Optional[pygame.Surface] = None) -> None:
+        """Scale render surface up to the display window with aspect preservation."""
+        render_surf = surface_to_present if surface_to_present is not None else self.post_processor.apply_post_processing(self.sim_surface)
+
+        actual_size = screen.get_size()
+        if actual_size != self.screen_res:
+            self.update_dest_rect(actual_size)
+            self.screen_res = actual_size
+
+        if self.dest_rect.size == actual_size:
+            pygame.transform.scale(render_surf, actual_size, screen)
         else:
             screen.fill((0, 0, 0))  # Clear black bars
             scaled = pygame.transform.scale(render_surf, (self.dest_rect.width, self.dest_rect.height))

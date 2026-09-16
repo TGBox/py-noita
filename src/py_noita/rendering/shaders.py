@@ -53,14 +53,14 @@ varying vec2 v_uv;
 vec2 get_heat_offset(vec2 uv, float time) {
     float x = sin(uv.y * 40.0 + time * 6.0) * cos(uv.x * 25.0 + time * 4.0);
     float y = cos(uv.x * 40.0 + time * 5.0) * sin(uv.y * 30.0 + time * 3.5);
-    return vec2(x, y) * 0.006 * u_heat_intensity;
+    return vec2(x, y) * 0.0018 * u_heat_intensity;
 }
 
 vec2 get_acid_offset(vec2 uv, float time) {
     float angle = atan(uv.y - 0.5, uv.x - 0.5);
     float dist = length(uv - 0.5);
     float wave = sin(dist * 22.0 - time * 4.0 + angle * 3.0);
-    return vec2(cos(wave), sin(wave)) * 0.008 * u_acid_distortion;
+    return vec2(cos(wave), sin(wave)) * 0.0022 * u_acid_distortion;
 }
 
 void main() {
@@ -83,7 +83,7 @@ void main() {
         float ring = smoothstep(0.05, 0.0, abs(dist - u_shockwave_radius));
         if (dist > 0.0001) {
             vec2 dir = diff / dist;
-            uv += dir * ring * u_shockwave_intensity * 0.035;
+            uv += dir * ring * u_shockwave_intensity * 0.015;
         }
     }
     
@@ -171,15 +171,15 @@ def apply_cpu_post_processing(
             if heat_int > 0.01:
                 hx = math.sin(v * 40.0 + time_val * 6.0) * math.cos(u * 25.0 + time_val * 4.0)
                 hy = math.cos(u * 40.0 + time_val * 5.0) * math.sin(v * 30.0 + time_val * 3.5)
-                sample_x = int(x + hx * heat_int * 4.0)
-                sample_y = int(y + hy * heat_int * 4.0)
+                sample_x = int(x + hx * heat_int * 1.2)
+                sample_y = int(y + hy * heat_int * 1.2)
 
             # 2. Acid refraction
             if acid_dist > 0.01:
                 angle = math.atan2(v - 0.5, u - 0.5)
                 wave = math.sin(dist_center * 22.0 - time_val * 4.0 + angle * 3.0)
-                sample_x = int(sample_x + math.cos(wave) * acid_dist * 5.0)
-                sample_y = int(sample_y + math.sin(wave) * acid_dist * 5.0)
+                sample_x = int(sample_x + math.cos(wave) * acid_dist * 1.4)
+                sample_y = int(sample_y + math.sin(wave) * acid_dist * 1.4)
 
             # 3. Shockwave ring
             if shock_int > 0.01 and shock_r > 0.01:
@@ -188,7 +188,7 @@ def apply_cpu_post_processing(
                 d_shock = math.sqrt(dx * dx + dy * dy)
                 ring_dist = abs(d_shock - shock_r)
                 if ring_dist < 0.06 and d_shock > 0.001:
-                    factor = (1.0 - (ring_dist / 0.06)) * shock_int * 15.0
+                    factor = (1.0 - (ring_dist / 0.06)) * shock_int * 4.5
                     sample_x = int(sample_x + (dx / d_shock) * factor)
                     sample_y = int(sample_y + (dy / d_shock) * factor)
 
@@ -198,8 +198,11 @@ def apply_cpu_post_processing(
 
             # 4. Chromatic Aberration
             if ca_pixel_shift > 0:
-                rx = min(width - 1, sample_x + ca_pixel_shift)
-                bx = max(0, sample_x - ca_pixel_shift)
+                ca_shift = int(ca_int * 3.0)
+                r_x = max(0, min(width - 1, sample_x + ca_shift))
+                b_x = max(0, min(width - 1, sample_x - ca_shift))
+                rx = r_x
+                bx = b_x
                 r_val = src[rx, sample_y, 0]
                 g_val = src[sample_x, sample_y, 1]
                 b_val = src[bx, sample_y, 2]
