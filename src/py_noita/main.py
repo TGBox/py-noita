@@ -1,5 +1,6 @@
 """Py-Noita: Bio-Horror Mikrokosmos Pixel Physics Roguelite - Main Game Engine."""
 
+from ast import Tuple
 from typing import Any
 import math
 import os
@@ -75,7 +76,7 @@ from py_noita.system.steamworks import SteamworksIntegration
 from py_noita.system.mod_manager import ModManager
 from py_noita.ui.settings_menu import SettingsMenu
 from py_noita.ui.evolution_tree import EvolutionTreeUI
-
+from py_noita.world.sandbox import generate_sandbox_level
 
 
 # Game States
@@ -86,6 +87,7 @@ STATE_TUNING = "TUNING"
 STATE_GAME_OVER = "GAME_OVER"
 STATE_SETTINGS = "SETTINGS"
 STATE_EVOLUTION_TREE = "EVOLUTION_TREE"
+STATE_SANDBOX = "SANDBOX"
 
 
 class Game:
@@ -177,6 +179,15 @@ class Game:
         self.world_seed: int = random.randint(100000, 999999)
         self.entering_seed: bool = False
         self.seed_input_str: str = ""
+        self.menu_selected_btn: int = 0
+        self.f3_debug_mode: bool = False
+        self.godmode: bool = False
+        self.active_lore_popup: Optional[Tuple[str, str]] = None
+        self._menu_button_rects: List[Tuple[pygame.Rect, str]] = []
+        self._mutagen_box_rect: Optional[pygame.Rect] = None
+        self._strain_arrow_left: Optional[pygame.Rect] = None
+        self._strain_arrow_right: Optional[pygame.Rect] = None
+
         self.streamer: Optional[WorldStreamer] = None
         self.footstep_timer: float = 0.0
         self.save_manager = SaveManager()
@@ -215,6 +226,12 @@ class Game:
         self.particles.density = self.settings_manager.particle_density
         self.hud.set_scale(self.settings_manager.hud_scale)
         self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
+
+        # Scale menu & global fonts dynamically with hud_scale
+        scale = max(0.75, min(2.5, self.settings_manager.hud_scale))
+        self.font = pygame.font.SysFont("Arial", max(9, int(12 * scale)))
+        self.title_font = pygame.font.SysFont("Arial", max(16, int(24 * scale)), bold=True)
+        self.btn_font = pygame.font.SysFont("Arial", max(11, int(15 * scale)), bold=True)
 
 
     @property
@@ -264,6 +281,8 @@ class Game:
         self.perk_manager = PerkManager()
         self.projectiles.clear()
         self.explosion_debris.clear()
+        self.active_lore_popup = None
+        self.player = None  # Fresh player instance to prevent dead-state lockup
 
         # Initialize streaming world manager
         if self.streamer:
@@ -317,6 +336,9 @@ class Game:
             if bonus_perk:
                 self.perk_manager.add_perk(bonus_perk, self.player)
 
+        if selected_strain.strain_id == "STRAIN_ACID_SYNTH" or selected_strain.bonus_perk_id == "ACID_IMMUNITY":
+            self.player.acid_immunity = True
+
         # Apply unlocked permanent meta-modifiers from Evolution Tree
         if "NODE_CHITIN_CARAPACE" in self.codex.unlocked_tree_nodes:
             self.player.max_hp += 25
@@ -331,6 +353,75 @@ class Game:
         self.mod_manager.api.trigger_hook("on_run_start", self)
 
         self.state = STATE_PLAYING
+
+    def start_sandbox_mode(self) -> None:
+        """Initialize and enter the Bio-Sandbox testing laboratory."""
+        self.current_biome_index = 0
+        self.kills_this_run = 0
+        self.earned_mutagen = 0
+        self.is_victory = False
+        self.ending_id = ENDING_NONE
+        self.has_primordial_genome = False
+        self.core_boss_defeated = False
+        self.ascent_return_gateway = None
+        self.perk_manager = PerkManager()
+        self.projectiles.clear()
+        self.explosion_debris.clear()
+        self.active_lore_popup = None
+
+        self.physics_world = PhysicsWorld(self.grid)
+        self.grid.physics_world = self.physics_world
+
+        spawn_pos, portal, dummies = generate_sandbox_level(self.grid)
+        self.exit_portal = portal
+        self.enemies = dummies
+        self.loot_cysts = []
+        self.gene_orbs = []
+        self.dna_tablets = []
+        self.secret_boss = None
+
+        self.player = Player(spawn_pos[0], spawn_pos[1])
+        self.player.biomass_currency = 9999
+        self.player.max_levitation = 9999.0
+        self.player.levitation = 9999.0
+
+        selected_strain = ALL_STRAINS[self.menu_strain_index]
+        self.player.cannulas.clear()
+        starter_c = OrganCannula(
+            name="Labor-Kanüle I",
+            capacity=6,
+            cast_delay=0.08,
+            recharge_time=0.3,
+            biomass_max=300.0,
+            biomass_recharge=100.0,
+            spread=1.0,
+            shuffle=False,
+        )
+        for gid in selected_strain.starter_gene_ids:
+            if gid in GENE_DICT:
+                starter_c.add_gene(GENE_DICT[gid])
+        self.player.cannulas.append(starter_c)
+
+        starter_c2 = OrganCannula(
+            name="Labor-Sprengdrüse",
+            capacity=4,
+            cast_delay=0.3,
+            recharge_time=0.6,
+            biomass_max=200.0,
+            biomass_recharge=60.0,
+            spread=3.0,
+            shuffle=False,
+        )
+        starter_c2.add_gene(GENE_DICT["BONE_BOMB"])
+        self.player.cannulas.append(starter_c2)
+
+        self.player.glands[0].material_id = selected_strain.starter_gland_mat
+        self.player.glands[0].current_amount = 100
+        if selected_strain.strain_id == "STRAIN_ACID_SYNTH":
+            self.player.acid_immunity = True
+
+        self.audio.play("squelch", volume=0.8)
+        self.state = STATE_SANDBOX
 
     def _render_generation_progress(self, percent: float, message: str) -> None:
         """Render animated bio-loading screen with pulsing organ icon and progress bar."""
@@ -552,7 +643,7 @@ class Game:
             if self.state == STATE_MENU:
                 self._update_menu(events)
                 self._draw_menu()
-            elif self.state == STATE_PLAYING:
+            elif self.state in (STATE_PLAYING, STATE_SANDBOX):
                 self._update_playing(dt, events)
                 self._draw_playing()
             elif self.state == STATE_INCUBATION:
@@ -606,9 +697,85 @@ class Game:
         """Render bio-laboratory evolution and mutation tree."""
         self.evolution_tree.draw(self.screen)
 
+    def _execute_menu_action(self, action_id: str) -> None:
+        """Execute selected menu option."""
+        if action_id == "NEW_GAME":
+            strain = ALL_STRAINS[self.menu_strain_index]
+            if strain.strain_id in self.codex.unlocked_strains:
+                self.start_new_run()
+            else:
+                if self.codex.unlock_strain(strain.strain_id):
+                    self.audio.play("pickup", volume=1.0)
+                else:
+                    self.audio.play("squelch", volume=0.5)
+        elif action_id == "RESUME":
+            if self.save_manager.has_quicksave():
+                if self.save_manager.load_run(self):
+                    self.audio.play("pickup", volume=1.0)
+        elif action_id == "SANDBOX":
+            self.start_sandbox_mode()
+        elif action_id == "LAB":
+            self.previous_state = STATE_MENU
+            self.state = STATE_EVOLUTION_TREE
+            self.audio.play("pickup", volume=0.8)
+        elif action_id == "SETTINGS":
+            self.previous_state = STATE_MENU
+            self.state = STATE_SETTINGS
+            self.audio.play("pickup", volume=0.8)
+        elif action_id == "QUIT":
+            pygame.event.post(pygame.event.Event(pygame.QUIT))
+
+    def _get_active_menu_options(self) -> List[Tuple[str, str, str]]:
+        """Return list of current active menu buttons (action_id, label, hotkey_hint)."""
+        options = [
+            ("NEW_GAME", "NEUES SPIEL STARTEN", "[ENTER / A]"),
+        ]
+        if self.save_manager.has_quicksave():
+            qs_info = self.save_manager.get_quicksave_info()
+            qs_name = qs_info["biome_name"] if qs_info else "Run"
+            options.append(("RESUME", f"RUN FORTSETZEN ({qs_name})", "[C]"))
+        options.append(("SANDBOX", "BIO-SANDKASTEN (TESTMODUS)", "[T]"))
+        options.append(("LAB", "BIO-LABOR (MUTATIONSBAUM)", "[L]"))
+        options.append(("SETTINGS", "EINSTELLUNGEN", "[O]"))
+        options.append(("QUIT", "SPIEL BEENDEN", "[ESC]"))
+        return options
+
     def _update_menu(self, events) -> None:
-        """Handle main menu / strain selection input and world seed entry."""
+        """Handle main menu / strain selection input and world seed entry with Keyboard, Mouse, and Gamepad."""
+        options = self._get_active_menu_options()
+        self.menu_selected_btn = max(0, min(len(options) - 1, self.menu_selected_btn))
+
         for event in events:
+            # Check unified menu navigation action (Gamepad D-Pad, Left Stick, Bumpers, Face buttons)
+            nav_action = self.input.get_menu_nav_action(event)
+            if nav_action:
+                if nav_action == "UP":
+                    self.menu_selected_btn = (self.menu_selected_btn - 1) % len(options)
+                    self.audio.play("pickup", volume=0.35)
+                    continue
+                elif nav_action == "DOWN":
+                    self.menu_selected_btn = (self.menu_selected_btn + 1) % len(options)
+                    self.audio.play("pickup", volume=0.35)
+                    continue
+                elif nav_action == "LEFT":
+                    self.menu_strain_index = (self.menu_strain_index - 1) % len(ALL_STRAINS)
+                    self.audio.play("pickup", volume=0.35)
+                    continue
+                elif nav_action == "RIGHT":
+                    self.menu_strain_index = (self.menu_strain_index + 1) % len(ALL_STRAINS)
+                    self.audio.play("pickup", volume=0.35)
+                    continue
+                elif nav_action == "SELECT":
+                    action_id = options[self.menu_selected_btn][0]
+                    self._execute_menu_action(action_id)
+                    continue
+                elif nav_action == "BACK":
+                    if self.entering_seed:
+                        self.entering_seed = False
+                    else:
+                        pygame.event.post(pygame.event.Event(pygame.QUIT))
+                    continue
+
             if event.type == pygame.KEYDOWN:
                 if self.entering_seed:
                     if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
@@ -628,113 +795,229 @@ class Game:
                                 self.seed_input_str += event.unicode
                     continue
 
-                if event.key in (pygame.K_d, pygame.K_RIGHT):
+                if event.key in (pygame.K_w, pygame.K_UP):
+                    self.menu_selected_btn = (self.menu_selected_btn - 1) % len(options)
+                    self.audio.play("pickup", volume=0.35)
+                elif event.key in (pygame.K_s, pygame.K_DOWN):
+                    self.menu_selected_btn = (self.menu_selected_btn + 1) % len(options)
+                    self.audio.play("pickup", volume=0.35)
+                elif event.key in (pygame.K_d, pygame.K_RIGHT):
                     self.menu_strain_index = (self.menu_strain_index + 1) % len(ALL_STRAINS)
+                    self.audio.play("pickup", volume=0.35)
                 elif event.key in (pygame.K_a, pygame.K_LEFT):
                     self.menu_strain_index = (self.menu_strain_index - 1) % len(ALL_STRAINS)
+                    self.audio.play("pickup", volume=0.35)
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    action_id = options[self.menu_selected_btn][0]
+                    self._execute_menu_action(action_id)
+                elif event.key == pygame.K_SPACE:
+                    self._execute_menu_action("NEW_GAME")
+                elif event.key == pygame.K_t:
+                    self._execute_menu_action("SANDBOX")
+                elif event.key == pygame.K_l:
+                    self._execute_menu_action("LAB")
+                elif event.key == pygame.K_o:
+                    self._execute_menu_action("SETTINGS")
+                elif event.key == pygame.K_c:
+                    self._execute_menu_action("RESUME")
+                elif event.key == pygame.K_u:
+                    strain = ALL_STRAINS[self.menu_strain_index]
+                    if self.codex.unlock_strain(strain.strain_id):
+                        self.audio.play("pickup", volume=1.0)
                 elif event.key == pygame.K_r:
                     self.world_seed = random.randint(100000, 999999)
                 elif event.key == pygame.K_s:
                     self.entering_seed = True
                     self.seed_input_str = str(self.world_seed)
-                elif event.key == pygame.K_u:
-                    # Try to unlock selected strain
-                    strain = ALL_STRAINS[self.menu_strain_index]
-                    if self.codex.unlock_strain(strain.strain_id):
-                        self.audio.play("pickup", volume=1.0)
-                elif event.key in (pygame.K_SPACE, pygame.K_RETURN):
-                    strain = ALL_STRAINS[self.menu_strain_index]
-                    if strain.strain_id in self.codex.unlocked_strains:
-                        self.start_new_run()
-                elif event.key == pygame.K_c:
-                    if self.save_manager.has_quicksave():
-                        if self.save_manager.load_run(self):
-                            self.audio.play("pickup", volume=1.0)
-                elif event.key == pygame.K_l:
-                    self.previous_state = STATE_MENU
-                    self.state = STATE_EVOLUTION_TREE
-                elif event.key == pygame.K_o:
-                    self.previous_state = STATE_MENU
-                    self.state = STATE_SETTINGS
+                elif event.key == pygame.K_ESCAPE:
+                    self._execute_menu_action("QUIT")
                 elif event.key == pygame.K_F1:
                     self.toggle_display_resolution()
                 elif event.key == pygame.K_F11:
                     self.toggle_fullscreen_mode()
 
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                # Click on mutagen essence box opens evolution tree
+            elif event.type == pygame.MOUSEMOTION:
                 mx, my = event.pos
-                view_w = self.screen_res[0]
-                if 125 <= my <= 155 and abs(mx - view_w // 2) < 200:
-                    self.previous_state = STATE_MENU
-                    self.state = STATE_EVOLUTION_TREE
+                for idx, (btn_rect, act_id) in enumerate(self._menu_button_rects):
+                    if btn_rect.collidepoint(mx, my):
+                        self.menu_selected_btn = idx
+                        break
+
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mx, my = event.pos
+                if self._mutagen_box_rect and self._mutagen_box_rect.collidepoint(mx, my):
+                    self._execute_menu_action("LAB")
+                    return
+                if self._strain_arrow_left and self._strain_arrow_left.collidepoint(mx, my):
+                    self.menu_strain_index = (self.menu_strain_index - 1) % len(ALL_STRAINS)
+                    self.audio.play("pickup", volume=0.4)
+                    return
+                if self._strain_arrow_right and self._strain_arrow_right.collidepoint(mx, my):
+                    self.menu_strain_index = (self.menu_strain_index + 1) % len(ALL_STRAINS)
+                    self.audio.play("pickup", volume=0.4)
+                    return
+                for btn_rect, act_id in self._menu_button_rects:
+                    if btn_rect.collidepoint(mx, my):
+                        self._execute_menu_action(act_id)
+                        return
 
     def _draw_menu(self) -> None:
-        """Render main menu with strain unlocks and title."""
+        """Render main menu with full UI element & text scaling, strain selection, and interactive buttons."""
         self.screen.fill((12, 8, 16))
         view_w, view_h = self.screen_res
+        scale = max(0.7, min(2.0, self.settings_manager.hud_scale))
 
-        # Title
-        title = self.title_font.render("PY-NOITA // MIKROKOSMOS", True, (255, 60, 80))
-        sub = self.font.render("Jeder Pixel physikalisch simuliert  •  Bio-Horror Deckbuilder", True, (190, 180, 170))
-        self.screen.blit(title, (view_w // 2 - title.get_width() // 2, 70))
-        self.screen.blit(sub, (view_w // 2 - sub.get_width() // 2, 105))
+        # Dynamic scaled fonts
+        title_f = pygame.font.SysFont("Arial", max(16, int(22 * scale)), bold=True)
+        sub_f = pygame.font.SysFont("Arial", max(10, int(12 * scale)))
+        btn_f = pygame.font.SysFont("Arial", max(11, int(13 * scale)), bold=True)
+        hint_f = pygame.font.SysFont("Arial", max(9, int(10 * scale)))
 
-        # Mutagen Currency (Clickable or [L] key)
-        mut_surf = self.font.render(f"Mutagen-Essenz (Labor-Konto): {self.codex.mutagen_essence} M  •  [L] Mutationsbaum öffnen", True, (240, 80, 230))
-        self.screen.blit(mut_surf, (view_w // 2 - mut_surf.get_width() // 2, 138))
+        cx = view_w // 2
 
-        # Quicksave Resume Prompt (if active run exists)
-        qs_info = self.save_manager.get_quicksave_info()
-        card_y = 175
-        if qs_info:
-            qs_text = f"[C] RUN FORTSETZEN: {qs_info['biome_name']} (HP: {int(qs_info['player_hp'])}/{int(qs_info['player_max_hp'])}) • Seed: {qs_info['world_seed']}"
-            qs_surf = self.font.render(qs_text, True, (80, 255, 210))
-            box_w = qs_surf.get_width() + 24
-            box_h = 24
-            box_x = view_w // 2 - box_w // 2
-            box_y = 160
-            card_y = 194
-            pygame.draw.rect(self.screen, (15, 35, 40), (box_x, box_y, box_w, box_h), border_radius=4)
-            pygame.draw.rect(self.screen, (60, 210, 180), (box_x, box_y, box_w, box_h), 1, border_radius=4)
-            self.screen.blit(qs_surf, (box_x + 12, box_y + 4))
+        # 1. Title Banner
+        title = title_f.render("PY-NOITA // MIKROKOSMOS", True, (255, 60, 80))
+        sub = sub_f.render("Jeder Pixel physikalisch simuliert  •  Bio-Horror Deckbuilder", True, (190, 180, 170))
+        top_y = max(15, int(25 * scale))
+        self.screen.blit(title, (cx - title.get_width() // 2, top_y))
+        self.screen.blit(sub, (cx - sub.get_width() // 2, top_y + title.get_height() + 4))
 
-        # Strain Card
+        # 2. Mutagen / Bio-Labor Banner Box
+        mut_y = top_y + title.get_height() + sub.get_height() + int(10 * scale)
+        mut_text = f"MUTAGEN-KONTO: {self.codex.mutagen_essence} M  •  BIO-LABOR [L]"
+        mut_surf = btn_f.render(mut_text, True, (240, 90, 230))
+        mut_w = mut_surf.get_width() + int(28 * scale)
+        mut_h = int(28 * scale)
+        mut_rect = pygame.Rect(cx - mut_w // 2, mut_y, mut_w, mut_h)
+        self._mutagen_box_rect = mut_rect
+
+        # Hover highlight for mutagen box
+        mx, my = pygame.mouse.get_pos()
+        is_mut_hov = mut_rect.collidepoint(mx, my)
+        pygame.draw.rect(self.screen, (32, 18, 38) if not is_mut_hov else (52, 26, 62), mut_rect, border_radius=5)
+        pygame.draw.rect(self.screen, (220, 80, 210) if is_mut_hov else (150, 50, 140), mut_rect, 1, border_radius=5)
+        self.screen.blit(mut_surf, (cx - mut_surf.get_width() // 2, mut_y + (mut_h - mut_surf.get_height()) // 2))
+
+        # 3. Symbiote Strain Card
         strain = ALL_STRAINS[self.menu_strain_index]
         is_unlocked = strain.strain_id in self.codex.unlocked_strains
+        card_w = min(int(420 * scale), view_w - 40)
+        card_h = int(105 * scale)
+        card_x = cx - card_w // 2
+        card_y = mut_y + mut_h + int(10 * scale)
 
-        card_w, card_h = 360, 130
-        card_x = view_w // 2 - card_w // 2
-        pygame.draw.rect(self.screen, (25, 18, 30), (card_x, card_y, card_w, card_h), border_radius=6)
-        pygame.draw.rect(self.screen, (160, 80, 110) if is_unlocked else (70, 60, 75), (card_x, card_y, card_w, card_h), 2, border_radius=6)
+        card_bg = (24, 16, 28)
+        card_border = (160, 80, 110) if is_unlocked else (70, 60, 75)
+        pygame.draw.rect(self.screen, card_bg, (card_x, card_y, card_w, card_h), border_radius=6)
+        pygame.draw.rect(self.screen, card_border, (card_x, card_y, card_w, card_h), 2, border_radius=6)
 
-        strain_title = self.font.render(f"< {strain.name} >" if is_unlocked else f"< {strain.name} (GESPERRT) >", True, (255, 230, 120) if is_unlocked else (150, 140, 145))
-        self.screen.blit(strain_title, (card_x + card_w // 2 - strain_title.get_width() // 2, card_y + 12))
+        # Strain Left / Right Arrow Buttons
+        arrow_sz = int(24 * scale)
+        arrow_y = card_y + int(10 * scale)
+        left_r = pygame.Rect(card_x + int(12 * scale), arrow_y, arrow_sz, arrow_sz)
+        right_r = pygame.Rect(card_x + card_w - arrow_sz - int(12 * scale), arrow_y, arrow_sz, arrow_sz)
+        self._strain_arrow_left = left_r
+        self._strain_arrow_right = right_r
 
-        desc = self.font.render(strain.description, True, (210, 200, 190))
-        self.screen.blit(desc, (card_x + card_w // 2 - desc.get_width() // 2, card_y + 40))
+        pygame.draw.rect(self.screen, (40, 28, 48), left_r, border_radius=3)
+        pygame.draw.rect(self.screen, (40, 28, 48), right_r, border_radius=3)
+        l_arr_surf = btn_f.render("<", True, (255, 220, 100))
+        r_arr_surf = btn_f.render(">", True, (255, 220, 100))
+        self.screen.blit(l_arr_surf, (left_r.centerx - l_arr_surf.get_width() // 2, left_r.centery - l_arr_surf.get_height() // 2))
+        self.screen.blit(r_arr_surf, (right_r.centerx - r_arr_surf.get_width() // 2, right_r.centery - r_arr_surf.get_height() // 2))
 
+        # Strain Title
+        s_title_str = strain.name if is_unlocked else f"{strain.name} (GESPERRT)"
+        s_title_surf = btn_f.render(s_title_str, True, (255, 230, 120) if is_unlocked else (150, 140, 145))
+        self.screen.blit(s_title_surf, (cx - s_title_surf.get_width() // 2, arrow_y + (arrow_sz - s_title_surf.get_height()) // 2))
+
+        # Strain Description
+        desc_surf = sub_f.render(strain.description, True, (210, 200, 190))
+        self.screen.blit(desc_surf, (cx - desc_surf.get_width() // 2, card_y + int(38 * scale)))
+
+        # Status text on card
         if is_unlocked:
-            start_prompt = self.font.render("[LEERTASTE] Abstieg in den Wirt beginnen", True, (80, 255, 120))
-            self.screen.blit(start_prompt, (card_x + card_w // 2 - start_prompt.get_width() // 2, card_y + 85))
+            status_surf = hint_f.render("Freigeschaltet  •  Bereit für die Symbiose", True, (80, 255, 120))
         else:
-            unlock_prompt = self.font.render(f"[U] Freischalten ({strain.unlock_cost} Mutagen)", True, (240, 120, 220))
-            self.screen.blit(unlock_prompt, (card_x + card_w // 2 - unlock_prompt.get_width() // 2, card_y + 85))
+            status_surf = hint_f.render(f"[U] Freischalten ({strain.unlock_cost} Mutagen)", True, (240, 120, 220))
+        self.screen.blit(status_surf, (cx - status_surf.get_width() // 2, card_y + card_h - status_surf.get_height() - int(8 * scale)))
 
-        # World Seed Bar
-        seed_y = card_y + card_h + 14
+        # 4. Interactive Menu Buttons
+        options = self._get_active_menu_options()
+        self._menu_button_rects.clear()
+
+        btn_w = min(int(330 * scale), view_w - 40)
+        btn_h = int(30 * scale)
+        btn_gap = int(6 * scale)
+        start_btn_y = card_y + card_h + int(12 * scale)
+
+        pulse = (math.sin(pygame.time.get_ticks() * 0.006) + 1.0) * 0.5
+
+        for idx, (act_id, label, hotkey) in enumerate(options):
+            by = start_btn_y + idx * (btn_h + btn_gap)
+            bx = cx - btn_w // 2
+            brect = pygame.Rect(bx, by, btn_w, btn_h)
+            self._menu_button_rects.append((brect, act_id))
+
+            is_selected = (idx == self.menu_selected_btn)
+            is_hovered = brect.collidepoint(mx, my)
+            active = is_selected or is_hovered
+
+            # Button background
+            if active:
+                bg_col = (48, 28, 54)
+                glow_val = int(180 + pulse * 75)
+                border_col = (60, glow_val, 150) if act_id != "QUIT" else (240, 60, 80)
+            else:
+                bg_col = (22, 16, 26)
+                border_col = (65, 45, 75)
+
+            pygame.draw.rect(self.screen, bg_col, brect, border_radius=5)
+            pygame.draw.rect(self.screen, border_col, brect, 2 if active else 1, border_radius=5)
+
+            # Indicator arrow
+            prefix = "▶ " if active else ""
+            txt_col = (255, 255, 255) if active else (205, 195, 210)
+            if act_id == "QUIT" and active:
+                txt_col = (255, 160, 160)
+
+            lbl_surf = btn_f.render(f"{prefix}{label}", True, txt_col)
+            self.screen.blit(lbl_surf, (bx + int(12 * scale), by + (btn_h - lbl_surf.get_height()) // 2))
+
+            hk_surf = hint_f.render(hotkey, True, (150, 180, 200) if active else (100, 90, 110))
+            self.screen.blit(hk_surf, (bx + btn_w - hk_surf.get_width() - int(12 * scale), by + (btn_h - hk_surf.get_height()) // 2))
+
+        # 5. World Seed Bar
+        seed_y = start_btn_y + len(options) * (btn_h + btn_gap) + int(8 * scale)
         if self.entering_seed:
-            seed_surf = self.font.render(f"WELT-SEED EINGEBEN: [ {self.seed_input_str}_ ]  (ENTER = Bestätigen, ESC = Abbrechen)", True, (255, 230, 80))
+            seed_surf = sub_f.render(f"WELT-SEED EINGEBEN: [ {self.seed_input_str}_ ]  (ENTER=OK, ESC=Abbruch)", True, (255, 230, 80))
         else:
-            seed_surf = self.font.render(f"WELT-SEED: [ {self.world_seed} ]  •  [R] Zufälliger Seed  •  [S] Seed eingeben", True, (175, 220, 240))
-        self.screen.blit(seed_surf, (view_w // 2 - seed_surf.get_width() // 2, seed_y))
+            seed_surf = hint_f.render(f"WELT-SEED: [ {self.world_seed} ]  •  [R] Zufälliger Seed  •  [S] Eingeben", True, (160, 210, 230))
+        self.screen.blit(seed_surf, (cx - seed_surf.get_width() // 2, seed_y))
 
-        # Controls info at bottom
-        ctrl_info = self.font.render("[L] Bio-Labor & Mutationsbaum  |  [O] Optionen  |  [F1] Auflösung  |  [F11] Vollbild  |  WASD + Maus", True, (150, 140, 160))
-        self.screen.blit(ctrl_info, (view_w // 2 - ctrl_info.get_width() // 2, view_h - 40))
+        # 6. Footer Navigation Hints
+        ctrl_info = hint_f.render("[W/S/Gamepad: Navigieren]  [A/D: Symbiot]  [ENTER/A: Wählen]  [ESC: Beenden]  [F11: Vollbild]", True, (130, 120, 140))
+        self.screen.blit(ctrl_info, (cx - ctrl_info.get_width() // 2, view_h - int(24 * scale)))
 
     def _update_playing(self, dt: float, events) -> None:
         """Handle active gameplay frame."""
+        # Dismiss active lore popup modal if displayed
+        if self.active_lore_popup is not None:
+            for event in events:
+                if event.type == pygame.KEYDOWN and event.key in (pygame.K_e, pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE):
+                    self.active_lore_popup = None
+                    self.audio.play("pickup", volume=0.5)
+                    return
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    self.active_lore_popup = None
+                    self.audio.play("pickup", volume=0.5)
+                    return
+                elif event.type == pygame.JOYBUTTONDOWN and event.button in (0, 1, 2, 7):
+                    self.active_lore_popup = None
+                    self.audio.play("pickup", volume=0.5)
+                    return
+            return
+
         if self.quicksave_notice_timer > 0.0:
             self.quicksave_notice_timer = max(0.0, self.quicksave_notice_timer - dt)
 
@@ -760,9 +1043,39 @@ class Game:
             self.state = STATE_TUNING
             return
         if input_state.pause or any(e.type == pygame.KEYDOWN and e.key == pygame.K_o for e in events):
-            self.previous_state = STATE_PLAYING
+            self.previous_state = self.state
             self.state = STATE_SETTINGS
             return
+        if self.state == STATE_SANDBOX and any(e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE for e in events):
+            self.state = STATE_MENU
+            return
+
+        # F3 Debug Mode & Testing Shortcuts
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_F3:
+                    self.f3_debug_mode = not self.f3_debug_mode
+                    self.audio.play("pickup", volume=0.6)
+                elif self.f3_debug_mode:
+                    if event.key == pygame.K_g:
+                        self.godmode = not self.godmode
+                        self.audio.play("pickup", volume=0.8)
+                    elif event.key == pygame.K_b and self.player:
+                        self.player.biomass_currency += 500
+                        self.audio.play("pickup", volume=0.8)
+                    elif event.key == pygame.K_m:
+                        self.codex.mutagen_essence += 100
+                        self.audio.play("pickup", volume=0.8)
+                    elif event.key == pygame.K_k:
+                        for e in self.enemies:
+                            e.alive = False
+                        self.audio.play("bone_crack", volume=0.8)
+
+        # Godmode / Sandbox infinite stamina & health replenishment
+        if (self.godmode or self.state == STATE_SANDBOX) and self.player:
+            self.player.hp = self.player.max_hp
+            self.player.levitation = self.player.max_levitation
+            self.player.alive = True
 
         # Update HUD animations
         self.hud.update(dt)
@@ -1021,12 +1334,30 @@ class Game:
 
         # 7b2. Check Ancient DNA Tablets
         for tab in self.dna_tablets:
+            if not getattr(tab, "alive", True):
+                continue
             dist = math.hypot(tab.x - self.player.center_x, tab.y - self.player.center_y)
+            tab.is_near_player = (dist < 45.0)
             if dist < 36.0:
                 self.discovered_tablets.add(tab.tablet_id)
                 self.steam.unlock_achievement("ACH_DNA_TABLET", self.audio)
                 if len(self.discovered_tablets) >= 5:
                     self.steam.unlock_achievement("ACH_ALL_TABLETS", self.audio)
+
+            if tab.is_near_player and input_state.interact:
+                tab.alive = False
+                self.player.biomass_currency += tab.bonus_biomass
+                self.codex.mutagen_essence += tab.bonus_mutagen
+                self.codex.unlock_lore_tablet(tab.tablet_id)
+                self.codex.save_codex()
+                self.audio.play("pickup", volume=1.0)
+                self.particles.spawn_spore_puff(tab.x, tab.y, count=30)
+                self.active_lore_popup = {
+                    "title": tab.title,
+                    "text": tab.lore_text,
+                    "biomass": tab.bonus_biomass,
+                    "mutagen": tab.bonus_mutagen,
+                }
 
         # 7b3. Check Organ Cannulas & Glands
         if len(self.player.cannulas) >= 4:
@@ -1075,7 +1406,11 @@ class Game:
 
         # 8. Check Exit Portal
         if self.exit_portal and self.exit_portal.is_player_inside(self.player.center_x, self.player.center_y):
-            if self.current_biome.biome_id == "PRIMORDIAL_CORE":
+            if self.state == STATE_SANDBOX:
+                self.state = STATE_MENU
+                self.audio.play("pickup", volume=0.9)
+                return
+            elif self.current_biome.biome_id == "PRIMORDIAL_CORE":
                 if self.core_boss_defeated or (self.secret_boss and not self.secret_boss.alive):
                     if self.player.orbs_collected >= 11:
                         self.trigger_ending(ENDING_SYMBIOSIS)
@@ -1085,7 +1420,6 @@ class Game:
                         return
             else:
                 self.enter_incubation_node()
-
 
         # 9. Camera & Particles
         self.camera.update(
@@ -1134,6 +1468,10 @@ class Game:
 
         # 10. Check Player Death (Permadeath: Erase Quicksave)
         if not self.player.alive:
+            if self.state == STATE_SANDBOX:
+                self.player.alive = True
+                self.player.hp = self.player.max_hp
+                return
             self.save_manager.delete_quicksave()
             self.earned_mutagen = self.codex.record_run(
                 self.current_biome_index + 1,
@@ -1244,12 +1582,19 @@ class Game:
                 self.editor.handle_click(sim_mx, sim_my, self.player)
 
     def _update_game_over(self, events) -> None:
-        """Handle Game Over screen inputs."""
+        """Handle Game Over screen inputs with Keyboard, Mouse, and Gamepad."""
         for event in events:
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
+                if event.key in (pygame.K_SPACE, pygame.K_RETURN):
                     self.start_new_run()
                 elif event.key == pygame.K_ESCAPE:
+                    self.state = STATE_MENU
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                self.start_new_run()
+            elif event.type == pygame.JOYBUTTONDOWN:
+                if event.button in (0, 7):  # A or Start
+                    self.start_new_run()
+                elif event.button in (1, 6):  # B or Back
                     self.state = STATE_MENU
 
     def _draw_playing(self, present_to_screen: bool = True) -> pygame.Surface:
@@ -1306,7 +1651,9 @@ class Game:
         # 3. Dynamic Bioluminescence Lighting Pass
         lights: List[LightSource] = []
         if self.player:
-            lights.append(LightSource(self.player.center_x, self.player.center_y, radius=48.0, color=COLOR_PLAYER_GLOW, intensity=0.9))
+            # Broad illumination circle around player so caves are clearly visible
+            lights.append(LightSource(self.player.center_x, self.player.center_y, radius=135.0, color=COLOR_PLAYER_GLOW, intensity=0.95))
+            lights.append(LightSource(self.player.center_x, self.player.center_y, radius=45.0, color=(255, 235, 210), intensity=0.85))
 
         for proj in self.projectiles:
             lights.append(LightSource(proj.x, proj.y, radius=proj.radius * 6.0, color=proj.color, intensity=0.7))
@@ -1360,10 +1707,99 @@ class Game:
             qs_msg = self.font.render("[F5 QUICKSAVE GESPEICHERT]", True, (80, 255, 190))
             render_surf.blit(qs_msg, (self.renderer.view_w // 2 - qs_msg.get_width() // 2, 8))
 
+        # 4d. Active Lore Modal, F3 Debug Overlay, or Sandbox Status
+        if self.active_lore_popup is not None:
+            self._draw_lore_popup(render_surf)
+        elif self.f3_debug_mode:
+            self._draw_debug_overlay(render_surf)
+        elif self.state == STATE_SANDBOX:
+            hint = self.font.render("[BIO-SANDKASTEN]  F3: Debug-Tools  •  ESC / Portal: Beenden", True, (245, 225, 90))
+            render_surf.blit(hint, (self.renderer.view_w // 2 - hint.get_width() // 2, 6))
+
         # 5. Present to window / Fullscreen display
         if present_to_screen:
             self.renderer.present(self.screen, render_surf)
         return render_surf
+
+    def _draw_lore_popup(self, surf: pygame.Surface) -> None:
+        """Render ancient DNA tablet translation modal."""
+        vw, vh = self.renderer.view_w, self.renderer.view_h
+        modal_w, modal_h = min(420, vw - 24), min(190, vh - 24)
+        mx = vw // 2 - modal_w // 2
+        my = vh // 2 - modal_h // 2
+
+        # Dim background
+        dim = pygame.Surface((vw, vh), pygame.SRCALPHA)
+        dim.fill((10, 6, 14, 185))
+        surf.blit(dim, (0, 0))
+
+        # Card frame
+        pygame.draw.rect(surf, (22, 16, 28), (mx, my, modal_w, modal_h), border_radius=6)
+        pygame.draw.rect(surf, (235, 195, 80), (mx, my, modal_w, modal_h), 2, border_radius=6)
+        pygame.draw.rect(surf, (90, 55, 110), (mx + 2, my + 2, modal_w - 4, modal_h - 4), 1, border_radius=5)
+
+        # Header Title
+        title = self.active_lore_popup.get("title", "Uralte Lore-Steintafel")
+        sub = "[URALTE BIO-INSCHRIFT ENTSCHIFFERT]"
+        t_surf = self.font.render(title.upper(), True, (255, 225, 110))
+        s_surf = self.font.render(sub, True, (200, 140, 230))
+        surf.blit(t_surf, (mx + modal_w // 2 - t_surf.get_width() // 2, my + 10))
+        surf.blit(s_surf, (mx + modal_w // 2 - s_surf.get_width() // 2, my + 26))
+
+        # Word-wrapped lore text
+        raw_text = self.active_lore_popup.get("text", "")
+        words = raw_text.split(" ")
+        lines = []
+        cur_line = ""
+        max_chars = max(35, int(modal_w / 7.2))
+        for w in words:
+            if len(cur_line + " " + w) <= max_chars:
+                cur_line = (cur_line + " " + w).strip()
+            else:
+                lines.append(cur_line)
+                cur_line = w
+        if cur_line:
+            lines.append(cur_line)
+
+        ly = my + 50
+        for l in lines[:5]:
+            l_surf = self.font.render(l, True, (235, 225, 215))
+            surf.blit(l_surf, (mx + 16, ly))
+            ly += 16
+
+        # Rewards badge
+        b_val = self.active_lore_popup.get("biomass", 50)
+        m_val = self.active_lore_popup.get("mutagen", 20)
+        rew_text = f"+{b_val} Biomasse  •  +{m_val} Mutagen im Kodex archiviert!"
+        r_surf = self.font.render(rew_text, True, (65, 240, 160))
+        surf.blit(r_surf, (mx + modal_w // 2 - r_surf.get_width() // 2, my + modal_h - 40))
+
+        # Close prompt
+        close_prompt = self.font.render("[E / LEERTASTE / A / Klick: Schließen]", True, (190, 180, 200))
+        surf.blit(close_prompt, (mx + modal_w // 2 - close_prompt.get_width() // 2, my + modal_h - 20))
+
+    def _draw_debug_overlay(self, surf: pygame.Surface) -> None:
+        """Render F3 developer/sandbox testing tools overlay."""
+        fps = int(self.clock.get_fps())
+        px, py = int(self.player.x), int(self.player.y) if self.player else (0, 0)
+        e_cnt = len(self.enemies)
+        p_cnt = len(self.projectiles)
+
+        ov_w, ov_h = 360, 68
+        pygame.draw.rect(surf, (15, 20, 30), (8, 8, ov_w, ov_h), border_radius=4)
+        pygame.draw.rect(surf, (60, 180, 240), (8, 8, ov_w, ov_h), 1, border_radius=4)
+
+        t1 = f"F3 DEBUG | FPS: {fps} | Pos: ({px}, {py}) | Gegner: {e_cnt} | Proj: {p_cnt}"
+        god_str = "AKTIV" if self.godmode else "AUS"
+        t2 = f"[G] Gottmodus: {god_str}  •  [B] +500 Bio  •  [M] +100 Mut"
+        t3 = f"[K] Alle Gegner töten  •  [F3] Schließen"
+
+        s1 = self.font.render(t1, True, (80, 220, 255))
+        s2 = self.font.render(t2, True, (255, 220, 120))
+        s3 = self.font.render(t3, True, (210, 200, 220))
+        surf.blit(s1, (16, 12))
+        surf.blit(s2, (16, 28))
+        surf.blit(s3, (16, 44))
 
     def _draw_tuning(self) -> None:
         """Render organ-tuning deckbuilder on top of paused world."""

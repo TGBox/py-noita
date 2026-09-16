@@ -43,10 +43,81 @@ class InputHandler:
         self._init_joysticks()
 
     def _init_joysticks(self) -> None:
-        """Initialize connected gamepads."""
-        if pygame.joystick.get_count() > 0:
-            self.joystick = pygame.joystick.Joystick(0)
-            self.joystick.init()
+        """Initialize connected gamepads with error tolerance."""
+        try:
+            if not pygame.joystick.get_init():
+                pygame.joystick.init()
+            if pygame.joystick.get_count() > 0:
+                self.joystick = pygame.joystick.Joystick(0)
+                self.joystick.init()
+            else:
+                self.joystick = None
+        except Exception:
+            self.joystick = None
+
+    def get_menu_nav_action(self, event: pygame.event.Event) -> Optional[str]:
+        """Convert keyboard or gamepad event into standard menu actions:
+        'UP', 'DOWN', 'LEFT', 'RIGHT', 'SELECT', 'BACK', 'TAB_PREV', 'TAB_NEXT', 'QUIT'.
+        """
+        # Keyboard navigation
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_w, pygame.K_UP):
+                return "UP"
+            elif event.key in (pygame.K_s, pygame.K_DOWN):
+                return "DOWN"
+            elif event.key in (pygame.K_a, pygame.K_LEFT):
+                return "LEFT"
+            elif event.key in (pygame.K_d, pygame.K_RIGHT):
+                return "RIGHT"
+            elif event.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_KP_ENTER):
+                return "SELECT"
+            elif event.key == pygame.K_ESCAPE:
+                return "BACK"
+            elif event.key in (pygame.K_q, pygame.K_LEFTBRACKET):
+                return "TAB_PREV"
+            elif event.key in (pygame.K_e, pygame.K_RIGHTBRACKET):
+                return "TAB_NEXT"
+
+        # Gamepad D-pad & Analog stick events
+        elif event.type == pygame.JOYHATMOTION:
+            hx, hy = event.value
+            if hy > 0:
+                return "UP"
+            elif hy < 0:
+                return "DOWN"
+            elif hx < 0:
+                return "LEFT"
+            elif hx > 0:
+                return "RIGHT"
+
+        elif event.type == pygame.JOYAXISMOTION:
+            if event.axis == 1:  # Left stick Y
+                if event.value < -0.6:
+                    return "UP"
+                elif event.value > 0.6:
+                    return "DOWN"
+            elif event.axis == 0:  # Left stick X
+                if event.value < -0.6:
+                    return "LEFT"
+                elif event.value > 0.6:
+                    return "RIGHT"
+
+        # Gamepad Button presses
+        elif event.type == pygame.JOYBUTTONDOWN:
+            if event.button == 0:  # A / Cross
+                return "SELECT"
+            elif event.button == 1:  # B / Circle
+                return "BACK"
+            elif event.button == 4:  # LB
+                return "TAB_PREV"
+            elif event.button == 5:  # RB
+                return "TAB_NEXT"
+            elif event.button in (7, 9):  # Start / Options
+                return "SELECT"
+            elif event.button in (6, 8):  # Select / Back
+                return "BACK"
+
+        return None
 
     def process_events(
         self,
@@ -182,6 +253,18 @@ class InputHandler:
                 state.sim_mouse_y = int(round(state.aim_world_y - cam_y))
                 state.mouse_in_bounds = (0 <= state.sim_mouse_x < sim_view_w and 0 <= state.sim_mouse_y < sim_view_h)
 
+            # D-pad hat movement
+            if self.joystick.get_numhats() > 0:
+                hx, hy = self.joystick.get_hat(0)
+                if hx < 0:
+                    state.move_x -= 1.0
+                elif hx > 0:
+                    state.move_x += 1.0
+                if hy > 0:
+                    state.hover = True
+                elif hy < 0:
+                    state.fast_fall = True
+
             # Triggers (Right Trigger = Fire, Left Trigger = Spray)
             for axis_idx in range(4, min(6, num_axes)):
                 val = self.joystick.get_axis(axis_idx)
@@ -191,8 +274,14 @@ class InputHandler:
                     else:
                         state.fire_secondary = True
 
-        # Process single-shot key events
+        # Process single-shot key and gamepad events
         for event in events:
+            # Hotplugging gamepads
+            if event.type == pygame.JOYDEVICEADDED:
+                self._init_joysticks()
+            elif event.type == pygame.JOYDEVICEREMOVED:
+                self._init_joysticks()
+
             if cfg:
                 if cfg.is_action_event("interact", event):
                     state.interact = True
@@ -222,19 +311,20 @@ class InputHandler:
                 elif event.button == 5:  # Wheel down
                     state.scroll_delta -= 1
             elif event.type == pygame.JOYBUTTONDOWN:
-                if cfg:
-                    if event.button == getattr(cfg, "gamepad_btn_inventory", 1):
-                        state.toggle_inventory = True
-                    elif event.button == getattr(cfg, "gamepad_btn_suck", 2):
-                        state.suck_liquid = True
-                    elif event.button == getattr(cfg, "gamepad_btn_interact", 3):
-                        state.interact = True
-                else:
-                    if event.button == 1:
-                        state.toggle_inventory = True
-                    elif event.button == 2:
-                        state.suck_liquid = True
-                    elif event.button == 3:
-                        state.interact = True
+                # LB / RB Hotbar Weapon & Gland rotation
+                if event.button == 4:
+                    state.scroll_delta -= 1
+                elif event.button == 5:
+                    state.scroll_delta += 1
+                # Start / Pause button
+                elif event.button in (7, 9):
+                    state.pause = True
+                # Face buttons
+                elif event.button == getattr(cfg, "gamepad_btn_inventory", 1) if cfg else event.button in (1, 6):
+                    state.toggle_inventory = True
+                elif event.button == getattr(cfg, "gamepad_btn_suck", 2) if cfg else event.button == 2:
+                    state.suck_liquid = True
+                elif event.button == getattr(cfg, "gamepad_btn_interact", 3) if cfg else event.button in (0, 3):
+                    state.interact = True
 
         return state

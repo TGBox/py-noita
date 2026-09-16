@@ -194,48 +194,55 @@ class HUD:
             surface.blit(text, (x + w + 4, y - 2))
 
     def _draw_cannula_slots(self, surface: pygame.Surface, player, x: int, y: int) -> None:
-        """Draw 4 weapon cannula slots."""
+        """Draw 4 weapon cannula slots scaled by hud_scale."""
+        slot_sz = max(14, int(18 * self.scale))
+        spacing = max(18, int(22 * self.scale))
+        circle_r = max(2, int(4 * self.scale))
+
         for i in range(4):
-            slot_x = x + i * 20
+            slot_x = x + i * spacing
             is_active = (i == player.active_cannula_index)
             border_col = (255, 230, 100) if is_active else (80, 75, 70)
             bg_col = (40, 30, 35) if is_active else (25, 20, 25)
 
-            pygame.draw.rect(surface, bg_col, (slot_x, y, 18, 18), border_radius=2)
-            pygame.draw.rect(surface, border_col, (slot_x, y, 18, 18), 1 if not is_active else 2)
+            pygame.draw.rect(surface, bg_col, (slot_x, y, slot_sz, slot_sz), border_radius=2)
+            pygame.draw.rect(surface, border_col, (slot_x, y, slot_sz, slot_sz), 1 if not is_active else 2)
 
             if i < len(player.cannulas):
                 c = player.cannulas[i]
                 # Mini icon representing first gene color
                 first_gene = next((g for g in c.slots if g is not None), None)
                 if first_gene:
-                    pygame.draw.circle(surface, first_gene.color, (slot_x + 9, y + 9), 4)
+                    pygame.draw.circle(surface, first_gene.color, (slot_x + slot_sz // 2, y + slot_sz // 2), circle_r)
 
             # Slot number label
-            num_surf = self.font.render(str(i + 1), True, (150, 140, 130))
-            surface.blit(num_surf, (slot_x + 1, y - 11))
+            num_surf = self.tiny_font.render(str(i + 1), True, (150, 140, 130))
+            surface.blit(num_surf, (slot_x + 1, y - num_surf.get_height() - 1))
 
     def _draw_gland_slots(self, surface: pygame.Surface, player, x: int, y: int) -> None:
-        """Draw 4 liquid sac glands."""
+        """Draw 4 liquid sac glands scaled by hud_scale."""
+        slot_sz = max(14, int(18 * self.scale))
+        spacing = max(18, int(22 * self.scale))
+
         for i in range(4):
-            slot_x = x + i * 20
+            slot_x = x + i * spacing
             is_active = (i == player.active_gland_index)
             border_col = (100, 230, 255) if is_active else (70, 75, 80)
             bg_col = (20, 25, 30)
 
-            pygame.draw.rect(surface, bg_col, (slot_x, y, 18, 18), border_radius=2)
-            pygame.draw.rect(surface, border_col, (slot_x, y, 18, 18), 1 if not is_active else 2)
+            pygame.draw.rect(surface, bg_col, (slot_x, y, slot_sz, slot_sz), border_radius=2)
+            pygame.draw.rect(surface, border_col, (slot_x, y, slot_sz, slot_sz), 1 if not is_active else 2)
 
             gland = player.glands[i]
             if gland.current_amount > 0 and gland.material_id != MAT_AIR:
                 fill_frac = gland.current_amount / gland.capacity
-                fill_h = max(2, int(14 * fill_frac))
+                fill_h = max(2, int((slot_sz - 4) * fill_frac))
                 mat_col = tuple(LUT_COLORS[gland.material_id])
-                pygame.draw.rect(surface, mat_col, (slot_x + 2, y + 16 - fill_h, 14, fill_h), border_radius=1)
+                pygame.draw.rect(surface, mat_col, (slot_x + 2, y + slot_sz - 2 - fill_h, slot_sz - 4, fill_h), border_radius=1)
 
             # Slot number label (5-8)
-            num_surf = self.font.render(str(i + 5), True, (130, 140, 150))
-            surface.blit(num_surf, (slot_x + 1, y - 11))
+            num_surf = self.tiny_font.render(str(i + 5), True, (130, 140, 150))
+            surface.blit(num_surf, (slot_x + 1, y - num_surf.get_height() - 1))
 
     def _draw_hover_tooltip(
         self,

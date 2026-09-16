@@ -115,6 +115,6 @@ class GameOverScreen:
             surface.blit(s_surf, (card_x + 10, card_y + 6 + i * 20))
 
         # Prompt
-        prompt = self.sub_font.render("[LEERTASTE] Erneut infizieren (Neuer Run)   |   [ESC] Menü", True, (255, 230, 120))
+        prompt = self.sub_font.render("[LEERTASTE / A / Klick] Erneut infizieren (Neuer Run)   |   [ESC / B] Menü", True, (255, 230, 120))
         surface.blit(prompt, (view_w // 2 - prompt.get_width() // 2, card_y + card_h + 10))
 

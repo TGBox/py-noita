@@ -239,90 +239,69 @@ class Renderer:
 
     def __init__(self, screen_res: Tuple[int, int] = RES_FULL_HD):
         self.screen_res = screen_res
-        self.is_ultrawide = (screen_res[0] / screen_res[1]) > 2.0
-
-        # Calculate simulation viewport dimensions
-        self.view_w = VIEWPORT_SIM_WIDTH_21_9 if self.is_ultrawide else VIEWPORT_SIM_WIDTH_16_9
-        self.view_h = VIEWPORT_SIM_HEIGHT
-
-        # Internal low-res surfaces
-        self.sim_surface = pygame.Surface((self.view_w, self.view_h))
-        # NumPy buffer for pygame.surfarray (width, height, 3)
-        self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)
-
-        # Dest rect for letterbox / scaling
-        self.integer_scaling: bool = True
+        self.is_ultrawide = (screen_res[0] / max(1, screen_res[1])) > 2.0
+        self.zoom_factor: str = "STANDARD"
+        self.integer_scaling: bool = False
         self.filter_mode: str = "CRISP"  # "CRISP" or "SMOOTH"
-        self.dest_rect = pygame.Rect(0, 0, screen_res[0], screen_res[1])
-        self.update_dest_rect(screen_res)
-
-        # GLSL & VFX Shader Post-Processor
-        self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
         self.anim_time: float = 0.0
 
-    def apply_graphics_options(self, integer_scaling: bool = True, filter_mode: str = "CRISP", camera_zoom: str = "STANDARD") -> None:
+        # Viewport dimensions and buffers
+        self.view_w = VIEWPORT_SIM_WIDTH_16_9
+        self.view_h = VIEWPORT_SIM_HEIGHT
+        self.sim_surface = pygame.Surface((self.view_w, self.view_h))
+        self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)
+        self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
+        self.dest_rect = pygame.Rect(0, 0, screen_res[0], screen_res[1])
+
+        self.update_dest_rect(screen_res)
+
+    def apply_graphics_options(self, integer_scaling: bool = False, filter_mode: str = "CRISP", camera_zoom: str = "STANDARD") -> None:
         """Apply integer scaling, pixel texture filtering, and zoom viewport sizing."""
         self.integer_scaling = integer_scaling
         self.filter_mode = filter_mode
         self.zoom_factor = camera_zoom
-
-        base_w = VIEWPORT_SIM_WIDTH_21_9 if self.is_ultrawide else VIEWPORT_SIM_WIDTH_16_9
-        base_h = VIEWPORT_SIM_HEIGHT
-        zoom_mult = 0.8 if camera_zoom == "NAH" else (1.25 if camera_zoom == "WEIT" else 1.0)
-        self.view_w = int(base_w * zoom_mult)
-        self.view_h = int(base_h * zoom_mult)
-
-        self.sim_surface = pygame.Surface((self.view_w, self.view_h))
-        self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)
         self.update_dest_rect(self.screen_res)
-        ps_mode = getattr(self.post_processor, "photosensitivity_mode", False)
-        self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
-        self.post_processor.photosensitivity_mode = ps_mode
 
     def set_resolution(self, screen_res: Tuple[int, int]) -> None:
-        """Switch between 1920x1080 (16:9), 2560x1080 (21:9 Ultrawide), or custom."""
-        self.screen_res = screen_res
-        self.is_ultrawide = (screen_res[0] / screen_res[1]) > 2.0
-        base_w = VIEWPORT_SIM_WIDTH_21_9 if self.is_ultrawide else VIEWPORT_SIM_WIDTH_16_9
-        base_h = VIEWPORT_SIM_HEIGHT
-        zoom_mult = getattr(self, "zoom_factor", "STANDARD")
-        mult = 0.8 if zoom_mult == "NAH" else (1.25 if zoom_mult == "WEIT" else 1.0)
-        self.view_w = int(base_w * mult)
-        self.view_h = int(base_h * mult)
-
-        self.sim_surface = pygame.Surface((self.view_w, self.view_h))
-        self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)
+        """Update display resolution and dynamically adapt viewport to eliminate black borders."""
         self.update_dest_rect(screen_res)
-        self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
 
     def update_dest_rect(self, screen_res: Tuple[int, int]) -> None:
-        """Calculate scaled destination rectangle preserving pixel aspect ratio or integer scaling."""
-        target_w, target_h = screen_res
+        """Calculate dynamic Noita-style simulation viewport dimensions and scaled destination rectangle."""
+        target_w = max(320, screen_res[0])
+        target_h = max(240, screen_res[1])
+        self.screen_res = (target_w, target_h)
+        self.is_ultrawide = (target_w / target_h) > 2.0
+
+        # Scale divisor based on screen height and zoom setting (Noita dynamic resolution)
+        # Standard: ~360p height
+        # Weit: ~450p height (sees more cavern)
+        # Nah: ~270p height (closer view)
+        base_h = 270 if self.zoom_factor == "NAH" else (450 if self.zoom_factor == "WEIT" else 360)
+        scale = max(1, target_h // base_h)
+
+        new_view_w = max(320, target_w // scale)
+        new_view_h = max(180, target_h // scale)
+
+        # Update buffers if viewport size changed
+        if new_view_w != self.view_w or new_view_h != self.view_h:
+            self.view_w = new_view_w
+            self.view_h = new_view_h
+            self.sim_surface = pygame.Surface((self.view_w, self.view_h))
+            self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)
+            ps_mode = getattr(self.post_processor, "photosensitivity_mode", False)
+            self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
+            self.post_processor.photosensitivity_mode = ps_mode
+
         if self.integer_scaling:
-            scale = max(1, min(target_w // self.view_w, target_h // self.view_h))
             scaled_w = self.view_w * scale
             scaled_h = self.view_h * scale
             offset_x = (target_w - scaled_w) // 2
             offset_y = (target_h - scaled_h) // 2
             self.dest_rect = pygame.Rect(offset_x, offset_y, scaled_w, scaled_h)
-            return
-
-        aspect_sim = self.view_w / self.view_h
-        aspect_screen = target_w / target_h
-
-        if abs(aspect_sim - aspect_screen) < 0.05:
-            # Exact match (e.g. 1920x1080 for 16:9, or 2560x1080 for 21:9)
-            self.dest_rect = pygame.Rect(0, 0, target_w, target_h)
-        elif aspect_screen > aspect_sim:
-            # Pillarbox (black bars on sides)
-            scaled_w = int(target_h * aspect_sim)
-            offset_x = (target_w - scaled_w) // 2
-            self.dest_rect = pygame.Rect(offset_x, 0, scaled_w, target_h)
         else:
-            # Letterbox (black bars on top/bottom)
-            scaled_h = int(target_w / aspect_sim)
-            offset_y = (target_h - scaled_h) // 2
-            self.dest_rect = pygame.Rect(0, offset_y, target_w, scaled_h)
+            # Format fill: covers 100% of window/screen without letterbox/pillarbox
+            self.dest_rect = pygame.Rect(0, 0, target_w, target_h)
 
     def render_grid(
         self,

@@ -85,7 +85,7 @@ class SettingsManager:
         self.vsync: bool = True
         self.screen_shake: float = 1.0         # 0.0 to 1.0 (0% - 100%)
         self.particle_density: float = 1.0     # 0.25 to 1.0 (25% - 100%)
-        self.integer_scaling: bool = True      # Integer pixel scaling
+        self.integer_scaling: bool = False     # Integer pixel scaling (False for dynamic format-fill)
         self.filter_mode: str = "CRISP"        # "CRISP" (nearest) or "SMOOTH" (bilinear)
         self.camera_zoom: str = "STANDARD"     # "NAH", "STANDARD", "WEIT"
 
@@ -120,7 +120,7 @@ class SettingsManager:
         self.vsync = True
         self.screen_shake = 1.0
         self.particle_density = 1.0
-        self.integer_scaling = True
+        self.integer_scaling = False
         self.filter_mode = "CRISP"
         self.camera_zoom = "STANDARD"
         self.master_volume = 0.8

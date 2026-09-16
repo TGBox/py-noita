@@ -135,9 +135,28 @@ def create_explosion(
         px = int(cx + math.cos(rad) * perimeter_radius)
         py = int(cy + math.sin(rad) * perimeter_radius)
         if 1 <= px < grid.width - 1 and 1 <= py < grid.height - 1:
-            if grid.grid[py, px] == MAT_AIR:
-                if np.random.random() < 0.4:
-                    grid.set_pixel(px, py, MAT_SMOKE, life_val=np.random.randint(60, 180))
+            if grid.grid[py, px] == MAT_AIR and np.random.random() < 0.4:
+                grid.set_pixel(px, py, MAT_SMOKE, life_val=np.random.randint(60, 180))
+
+    # 2b. Cleanup orphaned floating solid pixels along the crater edge (anti-pixel-debris)
+    clean_r = radius + 3
+    for y in range(max(1, cy - clean_r), min(grid.height - 1, cy + clean_r + 1)):
+        for x in range(max(1, cx - clean_r), min(grid.width - 1, cx + clean_r + 1)):
+            mat = grid.grid[y, x]
+            if mat != MAT_AIR and mat != MAT_WALL_BONE and PROP_STATE[mat] == STATE_SOLID:
+                # Count solid neighbors in 3x3
+                solid_neighbors = 0
+                for ny in (y - 1, y, y + 1):
+                    for nx in (x - 1, x, x + 1):
+                        if nx == x and ny == y:
+                            continue
+                        n_mat = grid.grid[ny, nx]
+                        if n_mat != MAT_AIR and PROP_STATE[n_mat] == STATE_SOLID:
+                            solid_neighbors += 1
+                if solid_neighbors <= 1:
+                    # Orphaned floating pixel: convert to falling powder or clear to air
+                    grid.grid[y, x] = MAT_BONE_CHIP if mat == MAT_BONE else MAT_ASH
+                    grid.life[y, x] = 0
 
     grid.mark_dirty(cx, cy, radius + 4)
 

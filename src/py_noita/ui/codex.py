@@ -72,6 +72,7 @@ class BioCodex:
         self.best_depth: int = 1
         self.total_kills: int = 0
         self.selected_strain_id: str = "STRAIN_DEFAULT"
+        self.unlocked_lore_tablets: List[int] = []
 
         self.load()
 
@@ -89,6 +90,7 @@ class BioCodex:
                     self.best_depth = data.get("best_depth", 1)
                     self.total_kills = data.get("total_kills", 0)
                     self.selected_strain_id = data.get("selected_strain_id", "STRAIN_DEFAULT")
+                    self.unlocked_lore_tablets = data.get("unlocked_lore_tablets", [])
             except Exception:
                 pass
 
@@ -105,11 +107,20 @@ class BioCodex:
                 "best_depth": self.best_depth,
                 "total_kills": self.total_kills,
                 "selected_strain_id": self.selected_strain_id,
+                "unlocked_lore_tablets": self.unlocked_lore_tablets,
             }
             with open(self.filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception:
             pass
+
+    def unlock_lore_tablet(self, tablet_id: int) -> bool:
+        """Record an ancient lore tablet unlock persistently."""
+        if tablet_id not in self.unlocked_lore_tablets:
+            self.unlocked_lore_tablets.append(tablet_id)
+            self.save()
+            return True
+        return False
 
     @staticmethod
     def calculate_mutagen_breakdown(depth: int, kills: int, biomass: int, boss_bonus: int = 0) -> dict:

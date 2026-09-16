@@ -128,6 +128,7 @@ def generate_world_level(
 
     # Carve horizontal caverns within each stratum
     for s, (s_top, s_bot) in enumerate(strata_bounds):
+        report_progress(0.15 + (s / max(1, len(strata_bounds))) * 0.25, f"Horizontale Kaverne {s+1}/{len(strata_bounds)} wächst...")
         s_mid = (s_top + s_bot) // 2
         num_burrowers = max(3, w // 70)
         if style == "LAGOON":
@@ -277,6 +278,7 @@ def generate_world_level(
                     break
 
     # Pre-simulate settling so powders & liquids rest naturally
+    report_progress(0.72, "Physikalische Sedimentierung & Dünen-Stabilisierung...")
     grid.settle_world(steps=15)
 
     # 7. Bottom Transition Hallway & Exit Portal

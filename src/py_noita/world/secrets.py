@@ -100,6 +100,8 @@ class DnaTablet:
         self.text = text
         self.width = 16
         self.height = 22
+        self.alive: bool = True
+        self.is_near_player: bool = False
         self.is_hovered: bool = False
 
     def contains_point(self, wx: float, wy: float) -> bool:
@@ -107,18 +109,42 @@ class DnaTablet:
                 self.y - 4 <= wy <= self.y + self.height + 4)
 
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int, font: Optional[pygame.font.Font] = None) -> None:
+        if not self.alive:
+            return
+
         sx = int(self.x - cam_x)
         sy = int(self.y - cam_y)
+
+        # Pulsing golden aura
+        ticks = pygame.time.get_ticks()
+        pulse = (math.sin(ticks * 0.005 + self.tablet_id) + 1.0) * 0.5
+        glow_r = int(14 + pulse * 4)
+        glow_surf = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(glow_surf, (240, 200, 70, int(30 + pulse * 30)), (glow_r, glow_r), glow_r)
+        surface.blit(glow_surf, (sx + self.width // 2 - glow_r, sy + self.height // 2 - glow_r))
 
         # Carved bone tablet rect
         rect = pygame.Rect(sx, sy, self.width, self.height)
         pygame.draw.rect(surface, (75, 70, 65), rect, border_radius=2)
-        pygame.draw.rect(surface, (190, 180, 160), rect, 1, border_radius=2)
+        pygame.draw.rect(surface, (230, 210, 140), rect, 1, border_radius=2)
 
         # Inscribed glowing runes
-        pygame.draw.line(surface, (220, 180, 70), (sx + 4, sy + 6), (sx + 12, sy + 6), 1)
-        pygame.draw.line(surface, (220, 180, 70), (sx + 5, sy + 11), (sx + 11, sy + 11), 1)
-        pygame.draw.line(surface, (220, 180, 70), (sx + 4, sy + 16), (sx + 12, sy + 16), 1)
+        pygame.draw.line(surface, (255, 210, 80), (sx + 4, sy + 6), (sx + 12, sy + 6), 1)
+        pygame.draw.line(surface, (255, 210, 80), (sx + 5, sy + 11), (sx + 11, sy + 11), 1)
+        pygame.draw.line(surface, (255, 210, 80), (sx + 4, sy + 16), (sx + 12, sy + 16), 1)
+
+        # Interaction Prompt when player is close
+        if self.is_near_player and font:
+            prompt_surf = font.render(f"[E] {self.title} entziffern", True, (255, 235, 140))
+            bg_w = prompt_surf.get_width() + 10
+            bg_h = prompt_surf.get_height() + 4
+            bg_x = sx + self.width // 2 - bg_w // 2
+            bg_y = sy - 18
+            bg_surf = pygame.Surface((bg_w, bg_h), pygame.SRCALPHA)
+            bg_surf.fill((20, 15, 25, 220))
+            pygame.draw.rect(bg_surf, (220, 180, 80), (0, 0, bg_w, bg_h), 1, border_radius=3)
+            bg_surf.blit(prompt_surf, (5, 2))
+            surface.blit(bg_surf, (bg_x, bg_y))
 
 
 # The 8 Ancient Lore Tablets

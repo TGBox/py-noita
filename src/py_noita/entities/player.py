@@ -104,6 +104,7 @@ class Player:
         self.spore_boost_timer: int = 0
         self.pus_sticky_timer: int = 0
         self.gas_exposure_timer: int = 0
+        self.acid_immunity: bool = False
 
         # Organ-Glands (Flasks): 4 liquid sacs
         self.glands: List[LiquidGland] = [LiquidGland() for _ in range(4)]
@@ -172,8 +173,8 @@ class Player:
         self.vx += (target_vx - self.vx) * friction_lerp
 
         # Hover / Levitation (Spore booster gives stronger upward impulse)
-        hover_impulse = PLAYER_HOVER_IMPULSE * (1.4 if self.spore_boost_timer > 0 else 1.0)
-        max_upward = -4.5 if self.spore_boost_timer > 0 else -3.2
+        hover_impulse = PLAYER_HOVER_IMPULSE * (1.5 if self.spore_boost_timer > 0 else 1.25)
+        max_upward = -4.8 if self.spore_boost_timer > 0 else -3.8
         if hover and self.levitation > 0.0:
             self.vy -= hover_impulse
             self.vy = max(self.vy, max_upward)  # Terminal upward velocity
@@ -194,15 +195,31 @@ class Player:
         # Terminal downward speed
         self.vy = min(self.vy, 5.0 * gravity_multiplier)
 
-        # 1. Horizontal movement & collision
+        # 1. Horizontal movement & collision with step-up autostep (up to 3px for slopes/bumps)
         steps_x = int(math.ceil(abs(self.vx)))
         step_dx = self.vx / max(1, steps_x)
+        MAX_STEP_UP = 3
+
         for _ in range(steps_x):
             new_x = self.x + step_dx
             if self._collides(grid, new_x, self.y):
-                self.vx = 0.0
-                break
-            self.x = new_x
+                # Try stepping up 1, 2, or 3 pixels over obstacles and slopes
+                stepped = False
+                for step in range(1, MAX_STEP_UP + 1):
+                    if not self._collides(grid, new_x, self.y - step):
+                        self.y -= step
+                        self.x = new_x
+                        stepped = True
+                        break
+                if not stepped:
+                    self.vx = 0.0
+                    break
+            else:
+                # Downhill slope snap: if grounded and moving down a slope, snap down 1px smoothly
+                if self.on_ground and not self.is_levitating and self.vy >= 0:
+                    if not self._collides(grid, new_x, self.y + 1) and self._collides(grid, new_x, self.y + 2):
+                        self.y += 1
+                self.x = new_x
 
         # 2. Vertical movement & collision
         steps_y = int(math.ceil(abs(self.vy)))
@@ -218,7 +235,7 @@ class Player:
                 break
             self.y = new_y
 
-        # Levitation recovery on ground
+        # Levitation recovery on ground (instant smooth walking without burning stamina)
         if self.on_ground:
             self.levitation = min(self.max_levitation, self.levitation + PLAYER_LEVITATION_RECHARGE)
         elif not self.is_levitating:
@@ -265,10 +282,11 @@ class Player:
                 if mat == MAT_BLOOD:
                     self.hp = min(self.max_hp, self.hp + 0.15)
                     self.blood_soaked_timer = 90
-                # Acid burns tissue
+                # Acid burns tissue (unless acid immune)
                 elif mat == MAT_ACID:
-                    self.take_damage(0.6, "ACID")
-                    self.acid_burn_timer = 60
+                    if not self.acid_immunity:
+                        self.take_damage(0.6, "ACID")
+                        self.acid_burn_timer = 60
                 # Fire ignites
                 elif mat == MAT_FIRE:
                     self.on_fire = True
@@ -287,9 +305,10 @@ class Player:
                 # Pus: viscous stickiness
                 elif mat == MAT_PUS:
                     self.pus_sticky_timer = max(self.pus_sticky_timer, 150)
-                # Toxic Vapor or Biogas: coughing exposure
+                # Toxic Vapor or Biogas: coughing exposure (unless acid/gas immune)
                 elif mat in (MAT_TOXIC_VAPOR, MAT_BIOGAS):
-                    self.gas_exposure_timer = min(180, self.gas_exposure_timer + 3)
+                    if not self.acid_immunity:
+                        self.gas_exposure_timer = min(180, self.gas_exposure_timer + 3)
                 # Water or Lymph cleanses fire, acid, and coatings
                 elif mat in (MAT_WATER, MAT_LYMPH):
                     self.on_fire = False
@@ -311,8 +330,11 @@ class Player:
                 self.on_fire = False
 
         if self.acid_burn_timer > 0:
-            self.acid_burn_timer -= 1
-            self.take_damage(0.15, "ACID")
+            if self.acid_immunity:
+                self.acid_burn_timer = 0
+            else:
+                self.acid_burn_timer -= 1
+                self.take_damage(0.15, "ACID")
 
         if self.bile_slippery_timer > 0:
             self.bile_slippery_timer -= 1
@@ -327,13 +349,20 @@ class Player:
             self.pus_sticky_timer -= 1
 
         if self.gas_exposure_timer > 0:
-            if self.gas_exposure_timer >= 40 and (self.gas_exposure_timer % 20 == 0):
-                self.take_damage(0.25, "GAS")
-                self.vx += float(np.random.uniform(-0.4, 0.4))
-            self.gas_exposure_timer -= 1
+            if self.acid_immunity:
+                self.gas_exposure_timer = 0
+            else:
+                if self.gas_exposure_timer >= 40 and (self.gas_exposure_timer % 20 == 0):
+                    self.take_damage(0.25, "GAS")
+                    self.vx += float(np.random.uniform(-0.4, 0.4))
+                self.gas_exposure_timer -= 1
 
     def take_damage(self, amount: float, source: str = "DAMAGE") -> None:
         """Apply damage and check death."""
+        # Acid & Toxic Gas immunity nullifies corrosive and gas damage
+        if self.acid_immunity and source in ("ACID", "GAS", "TOXIC"):
+            return
+
         # Pus grants +20% physical blunt resistance
         if self.pus_sticky_timer > 0 and source in ("DAMAGE", "IMPACT", "ENEMY"):
             amount *= 0.8

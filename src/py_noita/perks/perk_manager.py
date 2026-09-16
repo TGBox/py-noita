@@ -33,6 +33,8 @@ class PerkManager:
         elif perk.id == "GLASS_CARAPACE":
             player.max_hp = 30.0
             player.hp = min(player.hp, 30.0)
+        elif perk.id == "ACID_IMMUNITY":
+            player.acid_immunity = True
 
     def modify_damage_taken(self, amount: float, source: str) -> float:
         """Hook to mitigate or nullify damage."""
