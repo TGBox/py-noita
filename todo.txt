@@ -314,7 +314,7 @@
     - Betroffene Dateien: build_release.py, py_noita.spec
     - PyInstaller/Nuitka Windows 64-Bit Standalone-Build ohne externe Abhängigkeiten.
 
-[ ] (6.7) [UI/META] Interaktiver Evolutions- & Forschungsbaum (Mutagen-Labor).
+[x] (6.7) [UI/META] Interaktiver Evolutions- & Forschungsbaum (Mutagen-Labor).
     - Betroffene Dateien: src/py_noita/ui/evolution_tree.py (neu), src/py_noita/ui/codex.py, src/py_noita/main.py
     - Problem: Keine In-Game-Visualisierung, wie Stämme, Meta-Gene und Ur-Orbs freigeschaltet werden.
     - Technische Änderungen:
@@ -323,21 +323,21 @@
       * Visuelle Unterscheidung: Freigeschaltet, Freischaltbar (genug Mutagen), Gesperrt, Aktiv ausgewählt.
       * Tooltip-Cards an jedem Knoten mit Kosten, Lore-Text und Gameplay-Vorteilen.
     - Abnahmekriterien:
-      [ ] Forschungsbaum ist voll interaktiv und speichert Freischaltungen persistent im Kodex.
+      [x] Forschungsbaum ist voll interaktiv und speichert Freischaltungen persistent im Kodex.
 
-[ ] (6.8) [UI/META] Transparente Mutagen-Berechnung & Game-Over-Aufschlüsselung.
+[x] (6.8) [UI/META] Transparente Mutagen-Berechnung & Game-Over-Aufschlüsselung.
     - Betroffene Dateien: src/py_noita/ui/game_over.py, src/py_noita/ui/codex.py
     - Technische Änderungen:
       * Anzeige der Formel im Labor und Game-Over-Screen: Tiefe x 25 + Kills x 2 + (Biomasse // 10) + Boss-Boni.
       * Game-Over- und Sieg-Screen schlüsseln exakt auf, wie sich die verdienten Mutagene zusammensetzen.
     - Abnahmekriterien:
-      [ ] Der Spieler versteht genau, wie seine Leistung in Mutagen-Essenz umgerechnet wird.
+      [x] Der Spieler versteht genau, wie seine Leistung in Mutagen-Essenz umgerechnet wird.
 
-[ ] (6.9) [UI/SETTINGS] Grafikeinstellungs-Integration für Skalierung, Filter & Zoom.
+[x] (6.9) [UI/SETTINGS] Grafikeinstellungs-Integration für Skalierung, Filter & Zoom.
     - Betroffene Dateien: src/py_noita/ui/settings_menu.py, src/py_noita/system/settings_manager.py
     - Technische Änderungen:
       * Menüpunkte für Integer-Scaling (An/Aus), Pixel-Filter (Crisp vs. Smooth) und Kamera-Zoomfaktor (Nah / Standard / Weit) einbinden.
       * Einstellungen persistent in `settings.json` speichern.
     - Abnahmekriterien:
-      [ ] Alle neuen Display- und Kamera-Optionen können im Menü konfiguriert werden und bleiben über Spielstarts hinweg erhalten.
+      [x] Alle neuen Display- und Kamera-Optionen können im Menü konfiguriert werden und bleiben über Spielstarts hinweg erhalten.
 # ==============================================================================

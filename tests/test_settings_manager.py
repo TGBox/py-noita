@@ -179,6 +179,35 @@ class TestSettingsManager(unittest.TestCase):
         exit_menu = menu.handle_event(event_esc)
         self.assertTrue(exit_menu)
 
+    def test_graphics_options_persistence_and_menu(self):
+        """Test integer scaling, filter mode, and camera zoom persistence and menu toggling."""
+        menu = SettingsMenu(self.settings)
+        menu.active_tab = TAB_GRAPHICS
+
+        # Test index 8 (Integer Scaling)
+        menu.selected_index = 8
+        init_is = self.settings.integer_scaling
+        menu.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
+        self.assertEqual(self.settings.integer_scaling, not init_is)
+
+        # Test index 9 (Filter Mode)
+        menu.selected_index = 9
+        self.settings.filter_mode = "CRISP"
+        menu.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
+        self.assertEqual(self.settings.filter_mode, "SMOOTH")
+
+        # Test index 10 (Camera Zoom)
+        menu.selected_index = 10
+        self.settings.camera_zoom = "STANDARD"
+        menu.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RIGHT))
+        self.assertEqual(self.settings.camera_zoom, "WEIT")
+
+        # Test persistence
+        new_mgr = SettingsManager(filepath=self.filepath)
+        self.assertEqual(new_mgr.integer_scaling, self.settings.integer_scaling)
+        self.assertEqual(new_mgr.filter_mode, "SMOOTH")
+        self.assertEqual(new_mgr.camera_zoom, "WEIT")
+
 
 if __name__ == "__main__":
     unittest.main()

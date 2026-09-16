@@ -74,6 +74,7 @@ from py_noita.system.settings_manager import SettingsManager
 from py_noita.system.steamworks import SteamworksIntegration
 from py_noita.system.mod_manager import ModManager
 from py_noita.ui.settings_menu import SettingsMenu
+from py_noita.ui.evolution_tree import EvolutionTreeUI
 
 
 
@@ -84,6 +85,7 @@ STATE_INCUBATION = "INCUBATION"
 STATE_TUNING = "TUNING"
 STATE_GAME_OVER = "GAME_OVER"
 STATE_SETTINGS = "SETTINGS"
+STATE_EVOLUTION_TREE = "EVOLUTION_TREE"
 
 
 class Game:
@@ -133,6 +135,7 @@ class Game:
         self.editor = CannulaEditor()
         self.game_over_screen = GameOverScreen()
         self.codex = BioCodex()
+        self.evolution_tree = EvolutionTreeUI(self.codex, self.audio)
         self.font = pygame.font.SysFont("Arial", 12)
         self.title_font = pygame.font.SysFont("Arial", 22, bold=True)
 
@@ -180,9 +183,10 @@ class Game:
         self.quicksave_notice_timer: float = 0.0
         self.previous_state: str = STATE_MENU
         self.discovered_tablets: set = set()
+        self.apply_graphics_settings()
 
     def apply_graphics_settings(self) -> None:
-        """Apply window mode, resolution, screen shake, and particle density from settings."""
+        """Apply window mode, resolution, screen shake, integer scaling, filter, and zoom from settings."""
         w, h = self.settings_manager.resolution[0], self.settings_manager.resolution[1]
         mode = self.settings_manager.window_mode
         self.screen_res = (w, h)
@@ -198,9 +202,16 @@ class Game:
 
         self.screen_res = self.screen.get_size()
         self.renderer.set_resolution(self.screen_res)
+        self.renderer.apply_graphics_options(
+            integer_scaling=self.settings_manager.integer_scaling,
+            filter_mode=self.settings_manager.filter_mode,
+            camera_zoom=self.settings_manager.camera_zoom,
+        )
         self.renderer.post_processor.photosensitivity_mode = self.settings_manager.photosensitivity_mode
         self.camera.set_viewport_size(self.renderer.view_w, self.renderer.view_h)
         self.camera.shake_scale = self.settings_manager.screen_shake
+        zoom_mult = 0.8 if self.settings_manager.camera_zoom == "NAH" else (1.25 if self.settings_manager.camera_zoom == "WEIT" else 1.0)
+        self.camera.zoom_level = zoom_mult
         self.particles.density = self.settings_manager.particle_density
         self.hud.set_scale(self.settings_manager.hud_scale)
         self.lighting.resize(self.renderer.view_w, self.renderer.view_h)
@@ -305,6 +316,16 @@ class Game:
             bonus_perk = next((p for p in ALL_PERKS if p.id == selected_strain.bonus_perk_id), None)
             if bonus_perk:
                 self.perk_manager.add_perk(bonus_perk, self.player)
+
+        # Apply unlocked permanent meta-modifiers from Evolution Tree
+        if "NODE_CHITIN_CARAPACE" in self.codex.unlocked_tree_nodes:
+            self.player.max_hp += 25
+            self.player.hp += 25
+        if "NODE_NEURAL_COMPRESSION" in self.codex.unlocked_tree_nodes:
+            self.player.max_levitation = 160.0
+            self.player.levitation = 160.0
+        if "NODE_CORROSIVE_METABOLISM" in self.codex.unlocked_tree_nodes:
+            self.player.acid_immunity = True
 
         # Modding lifecycle hook
         self.mod_manager.api.trigger_hook("on_run_start", self)
@@ -489,9 +510,8 @@ class Game:
             self.current_biome_index + 1,
             self.kills_this_run,
             self.player.biomass_currency if self.player else 0,
-        ) + bonus
-        self.codex.mutagen_essence += bonus
-        self.codex.save()
+            boss_bonus=bonus,
+        )
 
         # Steam Endings & Meta Achievements
         if ending_id == ENDING_HOST_DEATH:
@@ -547,6 +567,9 @@ class Game:
             elif self.state == STATE_SETTINGS:
                 self._update_settings(events)
                 self._draw_settings()
+            elif self.state == STATE_EVOLUTION_TREE:
+                self._update_evolution_tree(events)
+                self._draw_evolution_tree()
 
             self.steam.draw_toasts(self.screen, lang=self.settings_manager.language)
             pygame.display.flip()
@@ -569,6 +592,19 @@ class Game:
         else:
             self._draw_menu()
         self.settings_menu.draw(self.screen)
+
+    def _update_evolution_tree(self, events) -> None:
+        """Handle evolution tree navigation, unlocks, and inputs."""
+        dt = self.clock.get_time() / 1000.0
+        self.evolution_tree.update(dt)
+        view_w, view_h = self.screen_res
+        for event in events:
+            if self.evolution_tree.handle_event(event, view_w, view_h):
+                self.state = self.previous_state
+
+    def _draw_evolution_tree(self) -> None:
+        """Render bio-laboratory evolution and mutation tree."""
+        self.evolution_tree.draw(self.screen)
 
     def _update_menu(self, events) -> None:
         """Handle main menu / strain selection input and world seed entry."""
@@ -614,6 +650,9 @@ class Game:
                     if self.save_manager.has_quicksave():
                         if self.save_manager.load_run(self):
                             self.audio.play("pickup", volume=1.0)
+                elif event.key == pygame.K_l:
+                    self.previous_state = STATE_MENU
+                    self.state = STATE_EVOLUTION_TREE
                 elif event.key == pygame.K_o:
                     self.previous_state = STATE_MENU
                     self.state = STATE_SETTINGS
@@ -621,6 +660,14 @@ class Game:
                     self.toggle_display_resolution()
                 elif event.key == pygame.K_F11:
                     self.toggle_fullscreen_mode()
+
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Click on mutagen essence box opens evolution tree
+                mx, my = event.pos
+                view_w = self.screen_res[0]
+                if 125 <= my <= 155 and abs(mx - view_w // 2) < 200:
+                    self.previous_state = STATE_MENU
+                    self.state = STATE_EVOLUTION_TREE
 
     def _draw_menu(self) -> None:
         """Render main menu with strain unlocks and title."""
@@ -633,8 +680,8 @@ class Game:
         self.screen.blit(title, (view_w // 2 - title.get_width() // 2, 70))
         self.screen.blit(sub, (view_w // 2 - sub.get_width() // 2, 105))
 
-        # Mutagen Currency
-        mut_surf = self.font.render(f"Mutagen-Essenz (Labor-Konto): {self.codex.mutagen_essence} M", True, (220, 50, 240))
+        # Mutagen Currency (Clickable or [L] key)
+        mut_surf = self.font.render(f"Mutagen-Essenz (Labor-Konto): {self.codex.mutagen_essence} M  •  [L] Mutationsbaum öffnen", True, (240, 80, 230))
         self.screen.blit(mut_surf, (view_w // 2 - mut_surf.get_width() // 2, 138))
 
         # Quicksave Resume Prompt (if active run exists)
@@ -683,7 +730,7 @@ class Game:
         self.screen.blit(seed_surf, (view_w // 2 - seed_surf.get_width() // 2, seed_y))
 
         # Controls info at bottom
-        ctrl_info = self.font.render("[O] Einstellungen / Optionen  |  [F1] Auflösung  |  [F11] Vollbild  |  WASD + Maus", True, (150, 140, 160))
+        ctrl_info = self.font.render("[L] Bio-Labor & Mutationsbaum  |  [O] Optionen  |  [F1] Auflösung  |  [F11] Vollbild  |  WASD + Maus", True, (150, 140, 160))
         self.screen.blit(ctrl_info, (view_w // 2 - ctrl_info.get_width() // 2, view_h - 40))
 
     def _update_playing(self, dt: float, events) -> None:

@@ -66,6 +66,7 @@ class BioCodex:
         self.filepath = os.path.abspath(filepath)
         self.mutagen_essence: int = 0
         self.unlocked_strains: List[str] = ["STRAIN_DEFAULT"]
+        self.unlocked_tree_nodes: List[str] = ["NODE_ROOT_PARASITE"]
         self.discovered_genes: List[str] = ["BONE_SPIKE", "ACID_GLOBULE"]
         self.discovered_enemies: List[str] = ["MACROPHAGE", "ANTIBODY"]
         self.best_depth: int = 1
@@ -82,6 +83,7 @@ class BioCodex:
                     data = json.load(f)
                     self.mutagen_essence = data.get("mutagen_essence", 0)
                     self.unlocked_strains = data.get("unlocked_strains", ["STRAIN_DEFAULT"])
+                    self.unlocked_tree_nodes = data.get("unlocked_tree_nodes", ["NODE_ROOT_PARASITE"])
                     self.discovered_genes = data.get("discovered_genes", ["BONE_SPIKE"])
                     self.discovered_enemies = data.get("discovered_enemies", ["MACROPHAGE"])
                     self.best_depth = data.get("best_depth", 1)
@@ -97,6 +99,7 @@ class BioCodex:
             data = {
                 "mutagen_essence": self.mutagen_essence,
                 "unlocked_strains": self.unlocked_strains,
+                "unlocked_tree_nodes": self.unlocked_tree_nodes,
                 "discovered_genes": self.discovered_genes,
                 "discovered_enemies": self.discovered_enemies,
                 "best_depth": self.best_depth,
@@ -108,11 +111,31 @@ class BioCodex:
         except Exception:
             pass
 
-    def record_run(self, depth: int, kills: int, biomass: int) -> int:
+    @staticmethod
+    def calculate_mutagen_breakdown(depth: int, kills: int, biomass: int, boss_bonus: int = 0) -> dict:
+        """Calculate detailed transparent breakdown of earned mutagen essence."""
+        depth_pts = depth * 25
+        kill_pts = kills * 2
+        biomass_pts = biomass // 10
+        total = depth_pts + kill_pts + biomass_pts + boss_bonus
+        formula_str = f"Tiefe ({depth}x25={depth_pts}) + Kills ({kills}x2={kill_pts}) + Biomasse ({biomass}//10={biomass_pts})"
+        if boss_bonus > 0:
+            formula_str += f" + Boss ({boss_bonus})"
+        return {
+            "depth_pts": depth_pts,
+            "kill_pts": kill_pts,
+            "biomass_pts": biomass_pts,
+            "boss_bonus": boss_bonus,
+            "total": total,
+            "formula": formula_str,
+        }
+
+    def record_run(self, depth: int, kills: int, biomass: int, boss_bonus: int = 0) -> int:
         """Record run statistics and reward Mutagen-Essence."""
         self.best_depth = max(self.best_depth, depth)
         self.total_kills += kills
-        earned_mutagen = depth * 25 + kills * 2 + (biomass // 10)
+        breakdown = self.calculate_mutagen_breakdown(depth, kills, biomass, boss_bonus)
+        earned_mutagen = breakdown["total"]
         self.mutagen_essence += earned_mutagen
         self.save()
         return earned_mutagen
@@ -126,4 +149,17 @@ class BioCodex:
                 self.unlocked_strains.append(strain_id)
                 self.save()
                 return True
+        return False
+
+    def unlock_tree_node(self, node_id: str, cost: int, strain_id: Optional[str] = None) -> bool:
+        """Unlock a mutation node in the evolution tree."""
+        if node_id in self.unlocked_tree_nodes:
+            return False
+        if self.mutagen_essence >= cost:
+            self.mutagen_essence -= cost
+            self.unlocked_tree_nodes.append(node_id)
+            if strain_id and strain_id not in self.unlocked_strains:
+                self.unlocked_strains.append(strain_id)
+            self.save()
+            return True
         return False

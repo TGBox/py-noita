@@ -85,6 +85,9 @@ class SettingsManager:
         self.vsync: bool = True
         self.screen_shake: float = 1.0         # 0.0 to 1.0 (0% - 100%)
         self.particle_density: float = 1.0     # 0.25 to 1.0 (25% - 100%)
+        self.integer_scaling: bool = True      # Integer pixel scaling
+        self.filter_mode: str = "CRISP"        # "CRISP" (nearest) or "SMOOTH" (bilinear)
+        self.camera_zoom: str = "STANDARD"     # "NAH", "STANDARD", "WEIT"
 
         # 4. Audio
         self.master_volume: float = 0.8        # 0.0 to 1.0
@@ -117,6 +120,9 @@ class SettingsManager:
         self.vsync = True
         self.screen_shake = 1.0
         self.particle_density = 1.0
+        self.integer_scaling = True
+        self.filter_mode = "CRISP"
+        self.camera_zoom = "STANDARD"
         self.master_volume = 0.8
         self.music_volume = 0.7
         self.sfx_volume = 0.8
@@ -232,6 +238,9 @@ class SettingsManager:
                     "vsync": self.vsync,
                     "screen_shake": self.screen_shake,
                     "particle_density": self.particle_density,
+                    "integer_scaling": self.integer_scaling,
+                    "filter_mode": self.filter_mode,
+                    "camera_zoom": self.camera_zoom,
                 },
                 "audio": {
                     "master_volume": self.master_volume,
@@ -286,6 +295,9 @@ class SettingsManager:
                 self.vsync = bool(gr.get("vsync", True))
                 self.screen_shake = float(gr.get("screen_shake", 1.0))
                 self.particle_density = float(gr.get("particle_density", 1.0))
+                self.integer_scaling = bool(gr.get("integer_scaling", True))
+                self.filter_mode = str(gr.get("filter_mode", "CRISP"))
+                self.camera_zoom = str(gr.get("camera_zoom", "STANDARD"))
 
             if "audio" in data:
                 au = data["audio"]

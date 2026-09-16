@@ -260,12 +260,35 @@ class Renderer:
         self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
         self.anim_time: float = 0.0
 
+    def apply_graphics_options(self, integer_scaling: bool = True, filter_mode: str = "CRISP", camera_zoom: str = "STANDARD") -> None:
+        """Apply integer scaling, pixel texture filtering, and zoom viewport sizing."""
+        self.integer_scaling = integer_scaling
+        self.filter_mode = filter_mode
+        self.zoom_factor = camera_zoom
+
+        base_w = VIEWPORT_SIM_WIDTH_21_9 if self.is_ultrawide else VIEWPORT_SIM_WIDTH_16_9
+        base_h = VIEWPORT_SIM_HEIGHT
+        zoom_mult = 0.8 if camera_zoom == "NAH" else (1.25 if camera_zoom == "WEIT" else 1.0)
+        self.view_w = int(base_w * zoom_mult)
+        self.view_h = int(base_h * zoom_mult)
+
+        self.sim_surface = pygame.Surface((self.view_w, self.view_h))
+        self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)
+        self.update_dest_rect(self.screen_res)
+        ps_mode = getattr(self.post_processor, "photosensitivity_mode", False)
+        self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
+        self.post_processor.photosensitivity_mode = ps_mode
+
     def set_resolution(self, screen_res: Tuple[int, int]) -> None:
         """Switch between 1920x1080 (16:9), 2560x1080 (21:9 Ultrawide), or custom."""
         self.screen_res = screen_res
         self.is_ultrawide = (screen_res[0] / screen_res[1]) > 2.0
-        self.view_w = VIEWPORT_SIM_WIDTH_21_9 if self.is_ultrawide else VIEWPORT_SIM_WIDTH_16_9
-        self.view_h = VIEWPORT_SIM_HEIGHT
+        base_w = VIEWPORT_SIM_WIDTH_21_9 if self.is_ultrawide else VIEWPORT_SIM_WIDTH_16_9
+        base_h = VIEWPORT_SIM_HEIGHT
+        zoom_mult = getattr(self, "zoom_factor", "STANDARD")
+        mult = 0.8 if zoom_mult == "NAH" else (1.25 if zoom_mult == "WEIT" else 1.0)
+        self.view_w = int(base_w * mult)
+        self.view_h = int(base_h * mult)
 
         self.sim_surface = pygame.Surface((self.view_w, self.view_h))
         self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)

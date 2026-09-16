@@ -90,6 +90,7 @@ ALL_HIDDEN_IMPORTS = [
     "py_noita.ui",
     "py_noita.ui.cannula_editor",
     "py_noita.ui.codex",
+    "py_noita.ui.evolution_tree",
     "py_noita.ui.game_over",
     "py_noita.ui.hover_info",
     "py_noita.ui.hud",

@@ -82,26 +82,39 @@ class GameOverScreen:
                 l_surf = self.lore_font.render(line, True, (225, 220, 210))
                 surface.blit(l_surf, (lore_box.x + 8, lore_box.y + 6 + li * 13))
 
-        # Stats Card
-        card_w, card_h = 260, 95
+        # Stats Card with transparent Mutagen yield breakdown
+        card_w, card_h = 350, 108
         card_x = view_w // 2 - card_w // 2
         card_y = 125 if victory else 85
         pygame.draw.rect(surface, (25, 18, 30), (card_x, card_y, card_w, card_h), border_radius=4)
         border_col = (140, 80, 100) if not victory else ENDINGS.get(ending_id, ENDINGS[ENDING_HOST_DEATH]).color
         pygame.draw.rect(surface, border_col, (card_x, card_y, card_w, card_h), 1, border_radius=4)
 
+        depth_pts = depth * 25
+        kill_pts = kills * 2
+        biomass_pts = biomass // 10
+        boss_pts = max(0, earned_mutagen - (depth_pts + kill_pts + biomass_pts))
+
         stats = [
-            f"Erreichte Tiefe: Organ-Schicht {depth}  •  DNA-Orbs: {orbs_collected}/11",
-            f"Neutralisierte Immunzellen: {kills}",
-            f"Absorbierte Biomasse: {biomass} B",
-            f"Gewonnene Mutagen-Essenz: +{earned_mutagen} (Gesamt: {total_mutagen})",
+            f"Erreichte Tiefe: Schicht {depth} (+{depth_pts} M)  •  DNA-Orbs: {orbs_collected}/11",
+            f"Immunzellen: {kills} (+{kill_pts} M)  •  Biomasse: {biomass} B (+{biomass_pts} M)",
+            f"Boss-Boni: +{boss_pts} M  •  Gewonnenes Mutagen: +{earned_mutagen} M",
+            f"Formel: [Tiefe x 25] + [Kills x 2] + [Biomasse // 10]" + (f" + [Boss: +{boss_pts}]" if boss_pts else ""),
+            f"Labor-Konto Gesamt: {total_mutagen} Mutagen-Essenz",
         ]
 
         for i, stat in enumerate(stats):
-            s_surf = self.text_font.render(stat, True, (230, 220, 210))
-            surface.blit(s_surf, (card_x + 12, card_y + 8 + i * 21))
+            if i == 3:
+                # Formula line in highlighted accent color
+                s_surf = self.lore_font.render(stat, True, (255, 220, 110))
+            elif i == 4:
+                # Total account in prominent color
+                s_surf = self.text_font.render(stat, True, (220, 100, 245))
+            else:
+                s_surf = self.text_font.render(stat, True, (230, 220, 210))
+            surface.blit(s_surf, (card_x + 10, card_y + 6 + i * 20))
 
         # Prompt
         prompt = self.sub_font.render("[LEERTASTE] Erneut infizieren (Neuer Run)   |   [ESC] Menü", True, (255, 230, 120))
-        surface.blit(prompt, (view_w // 2 - prompt.get_width() // 2, card_y + card_h + 12))
+        surface.blit(prompt, (view_w // 2 - prompt.get_width() // 2, card_y + card_h + 10))
 

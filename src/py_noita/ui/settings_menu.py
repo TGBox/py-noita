@@ -169,7 +169,7 @@ class SettingsMenu:
         elif self.active_tab == TAB_GAMEPAD:
             return 7  # Deadzone, Sensitivity, Invert Y, 4 Buttons
         elif self.active_tab == TAB_GRAPHICS:
-            return 8  # Language, Photosensitivity, HUD Scale, Mode, Resolution, VSync, Screen Shake, Particle Density
+            return 11  # Language, PS, HUD, Mode, Res, VSync, Shake, Particles, IntegerScaling, FilterMode, CameraZoom
         elif self.active_tab == TAB_AUDIO:
             return 5  # Master, Music, SFX, Ambient, Test Sound
         return 0
@@ -224,6 +224,14 @@ class SettingsMenu:
                 self.settings.particle_density = round(
                     max(0.25, min(1.0, self.settings.particle_density + delta * 0.15)), 2
                 )
+            elif self.selected_index == 8:  # Integer Scaling
+                self.settings.integer_scaling = not self.settings.integer_scaling
+            elif self.selected_index == 9:  # Filter Mode (CRISP vs SMOOTH)
+                self.settings.filter_mode = "SMOOTH" if self.settings.filter_mode == "CRISP" else "CRISP"
+            elif self.selected_index == 10:  # Camera Zoom (NAH, STANDARD, WEIT)
+                zooms = ["NAH", "STANDARD", "WEIT"]
+                cur_idx = zooms.index(self.settings.camera_zoom) if self.settings.camera_zoom in zooms else 1
+                self.settings.camera_zoom = zooms[(cur_idx + delta) % len(zooms)]
             self.settings.save()
 
         elif self.active_tab == TAB_AUDIO:
@@ -262,7 +270,7 @@ class SettingsMenu:
                 self.settings.save()
 
         elif self.active_tab == TAB_GRAPHICS:
-            if self.selected_index in (0, 1, 2, 3, 4, 5):
+            if self.selected_index in (0, 1, 2, 3, 4, 5, 8, 9, 10):
                 self._adjust_value(1)
 
         elif self.active_tab == TAB_AUDIO:
@@ -439,9 +447,12 @@ class SettingsMenu:
             ("Vertikale Synchronisation (V-Sync)", "EIN" if self.settings.vsync else "AUS", None),
             ("Bildschirm-Wackeln (Screen Shake)", f"{int(self.settings.screen_shake * 100)}%", self.settings.screen_shake),
             ("Partikeldichte (Simulation)", f"{int(self.settings.particle_density * 100)}%", (self.settings.particle_density - 0.25) / 0.75),
+            ("Integer-Scaling (Pixelgenau)", "EIN (Pixel-Grid)" if self.settings.integer_scaling else "AUS (Gestreckt)", None),
+            ("Pixel-Filter (Textur)", "CRISP (Pixeltreu)" if self.settings.filter_mode == "CRISP" else "SMOOTH (Geglättet)", None),
+            ("Kamera-Zoomfaktor", f"{self.settings.camera_zoom} ({'0.8x' if self.settings.camera_zoom == 'NAH' else ('1.25x' if self.settings.camera_zoom == 'WEIT' else '1.0x')})", None),
         ]
 
-        row_h = 19
+        row_h = 17
         for idx, (label, val_str, slider_frac) in enumerate(items):
             is_selected = (idx == self.selected_index)
             ry = y + idx * row_h

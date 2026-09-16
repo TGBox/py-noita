@@ -142,6 +142,25 @@ class TestEndings(unittest.TestCase):
             ending_id=ENDING_COSMIC_METAMORPHOSIS, orbs_collected=11,
         )
 
+    def test_transparent_mutagen_calculation(self):
+        """Verify the exact formula: Depth x 25 + Kills x 2 + (Biomass // 10) + Boss bonuses."""
+        from py_noita.ui.codex import BioCodex
+        # Scenario: Depth 4, 15 kills, 250 biomass, 50 boss bonus
+        # 4 * 25 = 100
+        # 15 * 2 = 30
+        # 250 // 10 = 25
+        # Boss bonus = 50
+        # Total = 100 + 30 + 25 + 50 = 205
+        breakdown = BioCodex.calculate_mutagen_breakdown(depth=4, kills=15, biomass=250, boss_bonus=50)
+        self.assertEqual(breakdown["depth_pts"], 100)
+        self.assertEqual(breakdown["kill_pts"], 30)
+        self.assertEqual(breakdown["biomass_pts"], 25)
+        self.assertEqual(breakdown["boss_bonus"], 50)
+        self.assertEqual(breakdown["total"], 205)
+        self.assertIn("100", breakdown["formula"])
+        self.assertIn("30", breakdown["formula"])
+        self.assertIn("25", breakdown["formula"])
+
     def test_game_trigger_endings(self):
         """Verify game.trigger_ending transitions state, sets victory flag, and saves mutagen reward."""
         game = Game()
