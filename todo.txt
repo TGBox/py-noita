@@ -1,341 +1,343 @@
-================================================================================
-  PY-NOITA: MASTER ROADMAP & TODO-SPEZIFIKATION
-================================================================================
-Erstellt auf Basis des detaillierten Anforderungs- und Design-Interviews.
-Alle Punkte enthalten konkrete Dateireferenzen, technische Spezifikationen und
-Abnahmekriterien für die Implementierung.
-
---------------------------------------------------------------------------------
-[1] PERK- & SHOP-LESBARKEIT IM HEILIGEN BERG (INCUBATION NODE)
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/world/incubation_node.py
-  - src/py_noita/ui/hover_info.py
-  - src/py_noita/main.py
-
-Problemstellung:
-  Perk-Sockel und Shop-Items stehen eng nebeneinander (ca. 32-40 px Abstand).
-  Statische Namenslabels überlappen sich stark und machen Beschreibungen und
-  Kosten unleserlich.
-
-Technische Änderungen:
-  - Statische Textzeilen über den Sockeln entfernen und durch dezente,
-    pulsierende Icons/Symbole ersetzen.
-  - Dynamisches Tooltip- und Info-Card-System implementieren:
-    * Erkennung bei Annäherung der Kreatur (Proximity-Radius < 35 px) oder
-      Maus-Hover über dem Sockel / Shop-Pod.
-    * Anzeige einer strukturierten Info-Box mit:
-      - Name des Perks / Gens / der Kanüle (inkl. Farbcodierung nach Seltenheit)
-      - Ausführliche Beschreibung aller Vor- und Nachteile
-      - Attributänderungen (z. B. Nachladezeit, Kapazität, Schaden, Streuung)
-      - Preis in Biomasse (für Shop-Items) mit rot/grüner Kennzeichnung
-        je nach aktuellem Guthaben des Spielers
-      - Interaktionshinweis (z. B. "Berühren zum Aufnehmen" bzw. "[E] Kaufen")
-    * Kollisions- und Überlappungsschutz: Die Info-Box wird immer so ausgerichtet,
-      dass sie innerhalb des sichtbaren Bildschirms bleibt und Nachbar-Sockel
-      nicht verdeckt.
-
-Abnahmekriterien:
-  [ ] Im Heiligen Berg überlappen sich keinerlei Texte mehr auf Sockeln.
-  [ ] Beim Annähern oder Hovern öffnet sich eine saubere Info-Box mit Name,
-      Beschreibung und Werten.
-  [ ] Shop-Preise und Kaufbedingungen sind sofort eindeutig erkennbar.
+# ==============================================================================
+# PY-NOITA: MASTER ROADMAP & VOLLSTÄNDIGER ENTWICKLUNGSPLAN
+# ==============================================================================
+# Konsolidierte Roadmap aller Engine-, Gameplay-, Audio- und UI-Systeme.
+# Strukturierung: Thematische Funktionsbereiche, chronologisch und nach
+# technischen Abhängigkeiten geordnet (vom Low-Level Fundament bis zum Meta-Layer).
+#
+# Status-Legende:
+#   [x] Abgeschlossen und im Codebase integriert
+#   [ ] Offen / Nächster anstehender Implementierungsschritt
+# ==============================================================================
 
 
---------------------------------------------------------------------------------
-[2] FLUGSTEUERUNG & SCHWEBE-AUSDAUER (LEVITATION REBALANCE)
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/config.py
-  - src/py_noita/entities/player.py
+# ==============================================================================
+# BEREICH 1: DISPLAY, RENDERING, KAMERA & SKALIERUNG
+# ==============================================================================
+# Fundament für alle visuellen Ausgaben. Bestimmt Koordinatensysteme, Viewports
+# und Rendering-Pipelines für alle nachfolgenden Schichten.
 
-Problemstellung:
-  Die Levitation entlädt sich schnell und benötigt am Boden über 3 Sekunden zur
-  Regeneration. Das zwingt den Spieler zu langen, frustrierenden Wartezeiten.
-  Zudem erholt sich die Ausdauer im freien Fall kaum.
+[x] (1.1) [RENDER] Hardware-beschleunigte GLSL-Post-Processing-Shader.
+    - Betroffene Dateien: src/py_noita/rendering/shaders.py
+    - Hitzeflimmern über Feuer und Biogas-Flammen (Verzerrungs-Noise-Shader).
+    - Säure-Brechung und ätzende Bildschirmverzerrung bei Kontakt mit Säure.
+    - Chromatische Aberration und Druckwellen-Schockwellenring bei Detonationen.
+    - Viszeraler Vignette- und Pulsier-Effekt bei niedrigen Lebenspunkten.
 
-Technische Änderungen:
-  - Boden-Regeneration in `config.py` massiv erhöhen:
-    `PLAYER_LEVITATION_RECHARGE` von 0.55 auf ~2.2 erhöhen (Aufladung von 0 auf
-    100% in ca. 0.8 bis 1.0 Sekunde am Boden).
-  - Luft-Erholung im freien Fall (`not self.is_levitating`) von 0.25x auf
-    mindestens 0.6x des Bodenwerts anheben, damit gezieltes Gleiten und Tippen
-    mit Ausdauer-Regeneration belohnt wird.
-  - Feinjustierung von `PLAYER_HOVER_IMPULSE`: Sanfteres, progressives
-    Ansprechverhalten beim Halten der Sprungtaste für präzise Navigation in engen
-    Höhlenpassagen ohne unkontrolliertes Deckenstoßen.
+[x] (1.2) [RENDER] Flüssigkeits-Shader, Viskosität & Oberflächenspannung.
+    - Betroffene Dateien: src/py_noita/rendering/renderer.py
+    - Glättung von Pixel-Flüssigkeiten zu zusammenhängenden Flüssigkeitskörpern mit viskosen Menisken.
+    - Lichtreflexionen und Glanzlichter auf Blut- und Säure-Oberflächen.
 
-Abnahmekriterien:
-  [ ] Vollständige Wiederaufladung am Boden dauert unter 1.0 Sekunde.
-  [ ] Im freien Fall ist eine spürbare Ausdauer-Regeneration aktiv.
-  [ ] Das Schweben fühlt sich agil, flüssig und kontrolliert an.
+[x] (1.3) [RENDER] Dynamische 2D-Schattenwürfe (Raymarched 2D Light Shadows).
+    - Betroffene Dateien: src/py_noita/rendering/shadows.py
+    - Biolumineszierende Lichtquellen werfen weiche Schatten hinter Knochen- und Gewebehindernissen.
 
+[ ] (1.4) [DISPLAY] Native Desktop-Auflösungserkennung & Echtes Integer-Scaling im Vollbild.
+    - Betroffene Dateien: src/py_noita/rendering/renderer.py, src/py_noita/main.py
+    - Problem: Fullscreen erzwingt bisher feste 1080p und skaliert ungleichmäßig (Pixelflimmern/Verzerrungen).
+    - Technische Änderungen:
+      * Native Auflösungserkennung via `pygame.display.get_desktop_sizes()` (1080p, 1440p, 4K, 21:9 Ultrawide).
+      * Echtes Integer-Scaling: Maximaler ganzzahliger Multiplikator (3x, 4x, 5x, 6x) passend zur nativen Auflösung.
+      * Saubere, zentrierte Letterbox/Pillarbox-Balken zur Eliminierung ungleichmäßiger Pixelbreiten.
+    - Abnahmekriterien:
+      [ ] Vollbild läuft nativ ohne Desktop-Verzerrung.
+      [ ] Jeder Simulationspixel wird mit exakt identischer Pixelgröße dargestellt.
 
---------------------------------------------------------------------------------
-[3] INTERAKTIVER EVOLUTIONS- & FORSCHUNGSBAUM (MUTAGEN-LABOR)
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/ui/codex.py
-  - src/py_noita/ui/evolution_tree.py (neu)
-  - src/py_noita/ui/game_over.py
-  - src/py_noita/main.py
+[ ] (1.5) [RENDER] Wählbare Post-Processing-Filter in den Grafikeinstellungen.
+    - Betroffene Dateien: src/py_noita/rendering/shaders.py, src/py_noita/rendering/renderer.py, src/py_noita/system/settings_manager.py
+    - Technische Änderungen:
+      * Modus "Pixel-Perfekt (Integer Crisp)": Knackscharfe, unverfälschte Pixelkanten.
+      * Modus "Sanftes Filtering (Subpixel Smooth / Anti-Shimmer)": Weiche Subpixel-Glättung gegen Kantenflimmern bei extrem hohen Auflösungen.
+    - Abnahmekriterien:
+      [ ] Filter ist im Einstellungsmenü umschaltbar und wird sofort wirksam.
 
-Problemstellung:
-  Es fehlt jede Erklärung im Spiel, wie Mutagen-Essenz verdient wird und wie
-  Stämme, Ur-Gen-Orbs und Meta-Progression freigeschaltet werden können.
-
-Technische Änderungen:
-  - Neuer Bildschirm "Bio-Labor & Mutationsbaum" (erreichbar aus dem Hauptmenü
-    via Taste [L] oder Klick auf die Mutagen-Anzeige).
-  - Visualisierter Forschungs- und Stammbaum:
-    * Verzweigter Graph mit Knoten für Starter-Stämme, Organ-Modifikatoren,
-      passive Resistenzen und Ur-Gen-Orbs.
-    * Visuelle Unterscheidung von: Freigeschaltet, Freischaltbar (genug Mutagen),
-      Gesperrt (Voraussetzungen fehlen), Aktiv ausgewählt.
-    * Tooltips zu jedem Knoten mit Lore-Text, Kosten und konkreten Gameplay-Boni.
-  - Transparente Mutagen-Ertragsformel einblenden:
-    * Tiefe x 25 + Kills x 2 + (Biomasse // 10) + Boss-Boni (100 / 350 / 500 M).
-  - Erweiterung des Game-Over- und Sieg-Bildschirms um eine genaue
-    Aufschlüsselung der verdienten Mutagen-Bestandteile der abgeschlossenen Runde.
-
-Abnahmekriterien:
-  [ ] Über das Hauptmenü kann der interaktive Evolutionsbaum geöffnet werden.
-  [ ] Spieler sieht transparent, wie viel Mutagen vorhanden ist und wie es
-      verdient wird.
-  [ ] Stämme und Mutationen können im Forschungsbaum gezielt freigeschaltet
-      und ausgewählt werden.
+[ ] (1.6) [CAMERA] Viewport-Erweiterung & Dynamischer Maus-Lookahead.
+    - Betroffene Dateien: src/py_noita/rendering/camera.py, src/py_noita/config.py, src/py_noita/rendering/renderer.py, src/py_noita/main.py
+    - Problem: Die Kamera ist zu nah am Spieler; das Sichtfeld schränkt die Übersicht stark ein.
+    - Technische Änderungen:
+      * Viewport um ~30–40% vergrößern (ca. 640x360 Simulationspixel statt bisher 480x270).
+      * Sanfter, dynamischer Maus-Lookahead in `Camera.update()`: Verschiebung der Kamera um bis zu 60–80 Pixel in Fadenkreuz-Richtung mit gefilterter Interpolation.
+      * Konfigurierbare Zoomstufen (Nah / Standard / Weit) in den Optionen.
+    - Abnahmekriterien:
+      [ ] Sichtbarer Kartenausschnitt ist spürbar größer.
+      [ ] Kamera bewegt sich geschmeidig in Zielrichtung der Maus.
 
 
---------------------------------------------------------------------------------
-[4] ANIMIERTER BIO-LADEBILDSCHIRM & GENERIERUNGS-FEEDBACK
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/main.py
-  - src/py_noita/world/generator.py
+# ==============================================================================
+# BEREICH 2: PHYSIK, MATERIALIEN, PARTIKEL & BEWEGUNGSMECHANIK
+# ==============================================================================
+# Definiert die physikalische Welt, Bewegungseigenschaften und Materialien,
+# auf denen die Weltengenerierung und das Gameplay aufbauen.
 
-Problemstellung:
-  Beim Starten eines Spiels und beim Übergang in das nächste Biom friert das
-  Fenster stumm ein, was vom Betriebssystem oft als Absturz interpretiert wird.
+[x] (2.1) [ENGINE] 2D Rigid-Body Physik (Pymunk) gekoppelt mit Numba-Pixelgitter.
+    - Betroffene Dateien: src/py_noita/physics/physics_world.py, src/py_noita/simulation/grid.py
+    - Rigid-Bodies verdrängen und zermalmen lose Pixel (Sand, Fleisch, Flüssigkeiten).
+    - Pixel-Explosionen üben physikalische Impulse und Drehmomente auf starre Körper aus.
+    - Kollisionsmasken zwischen Pixel-Gitter und konvexen Polygonen optimieren.
 
-Technische Änderungen:
-  - Neuer Ladebildschirm-Renderer mit atmosphärischer Bio-Horror-Ästhetik:
-    * Pulsierendes Symbioten-/Organ-Icon in der Bildschirmmitte.
-    * Dynamischer Fortschrittsbalken (0–100%).
-    * Biom-Name und atmosphärischer Lore-Teaser.
-  - Fortschritts-Hooks in `generate_world_level()` einbauen:
-    * Phase 1 (15%): "Zelluläre Kavernen wachsen..."
-    * Phase 2 (35%): "Organische Wände verhärten sich..."
-    * Phase 3 (55%): "Fluide und Sekrete fließen ein..."
-    * Phase 4 (75%): "Wirte und Wächter erwachen..."
-    * Phase 5 (90%): "Ur-Gene und Zysten stabilisieren sich..."
-    * Phase 6 (100%): "Symbiose bereit."
-  - Regelmäßiges `pygame.display.flip()` und `pygame.event.pump()` zwischen den
-    Phasen, um Windows-Einfrier-Erkennungen zuverlässig zu verhindern.
+[x] (2.2) [ENGINE] Zelluläre Einsturz- und Strukturmechanik.
+    - Betroffene Dateien: src/py_noita/simulation/structural_integrity.py
+    - Freigeschossene Terrain-Abschnitte (ohne strukturelle Verankerung zu Randknochen) lösen sich und fallen als Trümmer herab.
+    - Einstürzende Knorpelbrücken und Decken-Stalaktiten.
 
-Abnahmekriterien:
-  [ ] Weder Spielstart noch Levelwechsel frieren das Fenster stumm ein.
-  [ ] Der Ladebildschirm zeigt einen animierten Fortschrittsbalken und
-      wechselnde Statustexte.
+[x] (2.3) [GAMEPLAY] Organische zerstörbare Umweltobjekte (Props).
+    - Betroffene Dateien: src/py_noita/entities/props.py
+    - Rollende Säure-Gallenblasen (zerplatzen bei Aufprall oder Beschuss in Magensäure).
+    - Instabile Biogas-Zysten (explodieren verheerend bei Kontakt mit Projektilen oder Feuer).
+    - Schwimmende Knorpel-Flöße auf Blut- und Säureseen.
+    - Knochen-Minenkarren und schiebbare Chitin-Schutzschilde.
 
+[x] (2.4) [GAMEPLAY] Aufgehängte Objekte und Gelenk-Physik (Ketten & Gelenke).
+    - Betroffene Dateien: src/py_noita/entities/props.py
+    - An Knorpelsehnen hängende Nerven-Lampions (spenden Licht, stürzen bei Treffern ab und entzünden den Boden).
+    - Schwingende Fleischklumpen und Decken-Tentakel.
 
---------------------------------------------------------------------------------
-[5] KAMERA-ZOOM & DYNAMISCHER MAUS-LOOKAHEAD
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/rendering/camera.py
-  - src/py_noita/config.py
-  - src/py_noita/rendering/renderer.py
-  - src/py_noita/main.py
+[ ] (2.5) [BALANCE] Flugsteuerung & Schwebe-Ausdauer (Levitation Rebalance).
+    - Betroffene Dateien: src/py_noita/config.py, src/py_noita/entities/player.py
+    - Problem: Ausdauer entlädt sich schnell und lädt am Boden über 3 Sekunden lang auf.
+    - Technische Änderungen:
+      * `PLAYER_LEVITATION_RECHARGE` in `config.py` von 0.55 auf ~2.2 erhöhen (Regeneration am Boden in 0.8–1.0 Sekunde).
+      * Luft-Regeneration im freien Fall von 0.25x auf mindestens 0.6x des Bodenwerts anheben (Belohnung für Gleiten).
+      * `PLAYER_HOVER_IMPULSE` feiner abstimmen für kontrolliertes Schweben ohne abruptes Anstoßen an Decken.
+    - Abnahmekriterien:
+      [ ] Boden-Aufladung der Ausdauer dauert unter 1.0 Sekunde.
+      [ ] Gleiten im freien Fall regeneriert spürbar Ausdauer.
 
-Problemstellung:
-  Die Kamera ist zu nah am Spieler, das Sichtfeld ist eingeengt und man sieht
-  Gegner oder Gefahren oft erst, wenn man direkt hineinläuft.
+[ ] (2.6) [MATERIALS] Erweiterung der Materialpalette um bio-organische Pulverarten.
+    - Betroffene Dateien: src/py_noita/simulation/materials.py
+    - Technische Änderungen:
+      * Neue Material-IDs definieren und in Numba-Eigenschaftstabellen (Dichte, Brennbarkeit, Säureresistenz) registrieren:
+        - `MAT_CHITIN_SAND` (abgeriebene Exoskelett-Partikel, hoher Reibungswert)
+        - `MAT_NECRO_ASH` (zerfallene Zellreste, leicht fliegend)
+        - `MAT_FIBRIN_POWDER` (gerinnungsförderndes Proteingranulat)
+        - `MAT_SULFUR_SPORES` (hochentzündliches Pulver mit Feuerausbreitung)
+    - Abnahmekriterien:
+      [ ] Neue Pulverpartikel besitzen eigene Farbpaletten, physikalisches Fließverhalten und Reaktionsprofile.
 
-Technische Änderungen:
-  - Simulations-Viewport vergrößern:
-    * Basissichtfeld um ~30–40% erweitern (z. B. ca. 640x360 Simulationspixel
-      statt bisher 480x270).
-  - Dynamischer Maus-Lookahead in `Camera.update()` verstärken:
-    * Der Fokuspunkt verschiebt sich sanft um bis zu 60–80 Pixel in Richtung
-      des Mauszeigers / Fadenkreuzes.
-    * Sanfte Dämpfung (Lerp-Speed), damit schnelle Mausbewegungen nicht zu
-      Ruckeln oder Übelkeit führen.
-  - Kamera-Option im Einstellungsmenü:
-    * Zoom-Stufen auswählbar (Nah / Standard / Weitwinkel).
-
-Abnahmekriterien:
-  [ ] Der Spieler sieht deutlich mehr von der Umgebung um sich herum.
-  [ ] Die Kamera folgt dem Mauszeiger spürbar und geschmeidig in Zielrichtung.
-  [ ] Der Zoomfaktor kann in den Einstellungen konfiguriert werden.
+[ ] (2.7) [MATERIALS] Biologische Material-Taxonomie & Tooltip-Klassifizierung.
+    - Betroffene Dateien: src/py_noita/simulation/materials.py, src/py_noita/ui/hover_info.py
+    - Problem: Tooltips bezeichnen viele Stoffe generisch als "Pulver" oder "Feststoff".
+    - Technische Änderungen:
+      * `get_material_category(mat_id)` erweitern: Spezifische biologische Kategorien (z. B. "Struktur-Biomasse", "Organisches Granulat", "Geronnener Trockenstoff", "Ätzendes Sekret", "Reaktives Fließmittel").
+    - Abnahmekriterien:
+      [ ] Tooltips zeigen differenzierte, thematisch passende Klassifizierungen.
 
 
---------------------------------------------------------------------------------
-[6] NOITA-ARTIGE LEVEL-ARCHITEKTUR (HORIZONTALE STRATA & SCHÄCHTE)
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/world/generator.py
-  - src/py_noita/world/biome.py
+# ==============================================================================
+# BEREICH 3: WELTENGENERIERUNG, STRATA & LEVEL-LADEN
+# ==============================================================================
+# Baut auf den Materialien und dem Kamerasystem auf, um die Levelarchitektur
+# nach Noita-Vorbild zu erzeugen und nahtlose Ladevorgänge zu gewährleisten.
 
-Problemstellung:
-  Aktuell entstehen durch zufällige Abwärts-Gräber überwiegend vertikale,
-  parallele Röhren ohne Noita-typisches Höhlengefühl.
+[x] (3.1) [ENGINE] Asynchrones Chunk-Streaming und Speicher-Verwaltung.
+    - Betroffene Dateien: src/py_noita/world/streamer.py
+    - Chunks im Hintergrund laden/speichern, RAM-Verbrauch unter 500 MB halten.
+    - Deterministische Weltgenerierung über Welt-Seed.
 
-Technische Änderungen:
-  - Umstellung des Weltengenerators auf Schichten-Architektur (Noita-Strata):
-    * Unterteilung des Bioms in 3 bis 5 horizontale Höhlen-Ebenen.
-    * Jede Ebene erhält weitläufige horizontale Kavernen, Höhlenkammern,
-      Felsvorsprünge, Deckenwölbungen und Nebenräume.
-    * Ebene Böden und Barrieren aus dichterem Gewebe/Knochen trennen die
-      horizontalen Ebenen voneinander.
-  - Gezielte vertikale Verbindungsstrukturen:
-    * Vereinzelte organische Fallschächte, Säureschluchten und verwinkelte
-      Abstiege verbinden die Ebenen vertikal.
-    * Kein unkontrolliertes Durchfallen von oben bis unten; der Abstieg erfordert
-      horizontales Erkunden, um den nächsten Schacht zu finden.
-  - Biom-spezifische Eigenheiten einbinden (z. B. weite Seen in der Galle-Lagune,
-    Luftkammern und Lungenbläschen in der Infizierten Lunge).
+[x] (3.2) [WORLD] Ausbau auf 8 vollwertige Organ-Biome (Haupt- und Nebenpfade).
+    - Betroffene Dateien: src/py_noita/world/biome.py
+    - Biom 1 (Cutis), Biom 2 (Vaskulär), Biom 3 (Magensäure), Biom 4 (Gallen-Lagune),
+      Biom 5 (Lunge), Biom 6 (Katakomben), Biom 7 (Wirbelsäule), Biom 8 (Ur-Zentrum).
 
-Abnahmekriterien:
-  [ ] Levels bestehen aus horizontalen Kavernen-Ebenen statt paralleler Röhren.
-  [ ] Der Übergang zwischen Ebenen erfolgt über vereinzelte, klar erkennbare
-      Fallschächte und Durchbrüche.
-  [ ] Höhlen bieten Plattformen, Deckenstrukturen und Nischen zum Erkunden.
+[ ] (3.3) [WORLD] Noita-artige Schichten-Architektur (Horizontale Strata & Schächte).
+    - Betroffene Dateien: src/py_noita/world/generator.py, src/py_noita/world/biome.py
+    - Problem: Bisherige Zufallsgräber erzeugen fast ausschließlich vertikale Röhren.
+    - Technische Änderungen:
+      * Unterteilung jedes Bioms in 3–5 horizontale Schichten (Strata).
+      * Weitläufige horizontale Kavernen, Höhlenräume, Deckenstrukturen und Felsvorsprünge generieren.
+      * Horizontale Fels-/Knochenbarrieren zwischen den Schichten etablieren.
+      * Vereinzelte, gezielt gesetzte Fallschächte, Säureschluchten und verwinkelte Passagen als vertikale Übergänge schaffen.
+    - Abnahmekriterien:
+      [ ] Levels bieten primär horizontale Erkundung mit gezielten vertikalen Abgängen.
+      [ ] Kein unkontrolliertes senkrechtes Durchfallen durch den gesamten Level.
 
+[ ] (3.4) [WORLD] Organische Pulver-Verteilung & Vorab-Simulation (Settling).
+    - Betroffene Dateien: src/py_noita/world/generator.py
+    - Problem: Pulverhaufen spawnen mitten in der Luft und fallen beim Spielstart herab.
+    - Technische Änderungen:
+      * Pulveransammlungen nur auf festem Untergrund, in Mulden, Dünen und Nischen platzieren.
+      * Kurzer Vorab-Simulationsschritt während des Generierens, sodass lose Partikel bereits vor Levelstart zur Ruhe kommen.
+    - Abnahmekriterien:
+      [ ] Nach dem Laden des Levels fallen keine Pulverhaufen mehr abrupt aus der Luft.
 
---------------------------------------------------------------------------------
-[7] HOTBAR-MAUSRAD & SPLASH-TEXT AM BILDSCHIRMRAND
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/input/input_handler.py
-  - src/py_noita/ui/hud.py
-  - src/py_noita/main.py
-
-Problemstellung:
-  Waffen und Drüsen können nur über Zifferntasten gewechselt werden; das Mausrad
-  funktioniert nicht. Beim Wechsel fehlt optisches Feedback über die Auswahl.
-
-Technische Änderungen:
-  - Mausrad-Ereignisse (`pygame.MOUSEWHEEL` und Scroll-Buttons) im InputHandler
-    erfassen und verarbeiten.
-  - Intelligente zyklische Rotation nur durch BELEGTE Slots:
-    * Nahtloses Weiterschalten: Kanüle 1 -> Kanüle 2 -> ... -> befüllte Drüse 1
-      -> befüllte Drüse 2 -> ... -> zurück zur ersten Kanüle.
-    * Leere Slots werden beim Mausrad-Scrollen automatisch übersprungen.
-  - Dynamischer Splash-Text am unteren Bildschirmrand:
-    * Bei jedem Slot-Wechsel wird ein dezenter, eleganter Benachrichtigungstext
-      eingeblendet (z. B. "Tentakel-Röhre [4/4]" oder "Drüse: Ätzende Säure [120/150]").
-    * Sanfte Alpha-Einblendung, Verweildauer von ca. 1.2 Sekunden und anschließendes
-      weiches Ausfaden.
-
-Abnahmekriterien:
-  [ ] Mausrad scrollt zuverlässig durch alle belegten Kanülen und gefüllten Drüsen.
-  [ ] Leere Slots werden beim Scrollen übersprungen.
-  [ ] Ein Splash-Text am unteren Bildschirmrand informiert sofort über das gewählte Item.
+[ ] (3.5) [SYSTEM] Animierter Bio-Ladebildschirm mit Generierungs-Feedback.
+    - Betroffene Dateien: src/py_noita/main.py, src/py_noita/world/generator.py
+    - Problem: Spiel friert beim Laden eines Levels stumm ein ("Keine Rückmeldung").
+    - Technische Änderungen:
+      * Bio-Horror-Ladebildschirm mit pulsierendem Organ-Icon und Fortschrittsbalken.
+      * Phasen-Callbacks in `generate_world_level()` integrieren:
+        (15%: "Kavernen wachsen...", 40%: "Wände verhärten...", 65%: "Fluide fließen ein...", 85%: "Wächter erwachen...", 100%: "Bereit").
+      * `pygame.display.flip()` und `pygame.event.pump()` zwischen den Phasen aufrufen.
+    - Abnahmekriterien:
+      [ ] Spielstart und Biome-Wechsel zeigen kontinuierliches visuelles Feedback ohne Fenster-Freeze.
 
 
---------------------------------------------------------------------------------
-[8] ORGANISCHE PULVER-VERTEILUNG & MATERIAL-DIVERSITÄT
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/world/generator.py
-  - src/py_noita/simulation/materials.py
-  - src/py_noita/ui/hover_info.py
+# ==============================================================================
+# BEREICH 4: GAMEPLAY, WAFFEN, KREATUR & BIO-STATUSEFFEKTE
+# ==============================================================================
+# Baut auf Physik, Materialien und Levels auf. Umfasst Waffen, Deckbuilding,
+# Animationen, Feinde, Bosse und die neuen Reaktionen der Kreatur auf Materialien.
 
-Problemstellung:
-  Pulverhaufen werden mitten in der Luft platziert und fallen beim Betreten des
-  Bioms abrupt herab. Viele Materialien heißen im Tooltip generisch "Pulver"
-  oder "Feststoff".
+[x] (4.1) [WEAPONS] Erweiterung des Gen-Katalogs auf 120+ einzigartige Karten.
+    - Betroffene Dateien: src/py_noita/weapons/gene.py
+    - 40 Projektile, 25 Trigger/Timer, 30 Modifikatoren, 15 Formations-Karten.
 
-Technische Änderungen:
-  - Organische Platzierung von Pulvern:
-    * Keine willkürlichen Pulverkugeln in der Luft. Pulveransammlungen werden nur
-      auf festen Böden, in Vertiefungen, Höhlennischen oder Basins abgelagert.
-    * Vorab-Simulation / Settling während der Weltengenerierung, sodass beim
-      Start alle Pulver bereits ruhen und nicht herabrieseln.
-  - Erweiterung der Material-Palette um bio-organische Pulver:
-    * `MAT_CHITIN_SAND` (Chitin-Sand: abgeriebene Exoskelett-Partikel)
-    * `MAT_NECRO_ASH` (Nekrose-Asche: verbrannte, zerfallene Zellreste)
-    * `MAT_FIBRIN_POWDER` (Fibrin-Granulat: gerinnungsförderndes Proteinpulver)
-    * `MAT_SULFUR_SPORES` (Schwefel-Sporen: hochentzündliches Biopulver)
-  - Differenzierte Bezeichnungen im Hover-Tooltip:
-    * Statt generischem "Pulver" / "Feststoff" werden biologisch treffende
-      Kategorien angezeigt (z. B. "Struktur-Biomasse", "Organisches Granulat",
-      "Geronnener Trockenstoff", "Ätzendes Sekret", "Reaktives Fließmittel").
+[x] (4.2) [WEAPONS] Meta-Gene & Replikations-Katalysatoren.
+    - Betroffene Dateien: src/py_noita/weapons/gene.py
+    - Polymerase-Duplikator x2/x3/x4/x10, Zirkuläre RNA-Schleife, Ribosomen-Katalysator, Alpha/Omega.
 
-Abnahmekriterien:
-  [ ] Nach dem Levelstart fallen keine Pulvermengen mehr abrupt aus der Luft.
-  [ ] Pulver liegt natürlich in Dünen, Mulden und Nischen.
-  [ ] Neue bio-organische Pulverarten sind im Spiel vorhanden.
-  [ ] Der Hover-Tooltip zeigt differenzierte Namen und organische Kategorien.
+[x] (4.3) [WEAPONS] Material-Transmutations-Gene.
+    - Betroffene Dateien: src/py_noita/weapons/gene.py
+    - "Fleisch zu Magensäure", "Blut zu Mutagen", Meere von Fluiden, Midas-Enzym.
 
+[x] (4.4) [BALANCING] Kanülen-Verhalten, Wrapping und Rekursions-Sicherheitsnetz.
+    - Betroffene Dateien: src/py_noita/weapons/deck_evaluator.py
+    - Wand-Wrapping-Verhalten, Hard-Cap für Projektil-Splits (max 250), Loop-Dämpfung.
 
---------------------------------------------------------------------------------
-[9] KREATUR-REAKTIONEN & STATUSEFFEKTE (BIO-STATUS & KÖRPER-MUTATIONEN)
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/entities/player.py
-  - src/py_noita/ui/hud.py
+[x] (4.5) [ANIMATION] Prozedurale Tentakel- und Gliedmaßen-Inverse-Kinematik (IK).
+    - Betroffene Dateien: src/py_noita/entities/tentacle.py, src/py_noita/entities/enemy.py
+    - FABRIK-Tentakeln am Symbioten, Beine für Parasiten-Spinnen, Makrophagen-Verformung.
 
-Problemstellung:
-  Die Spieler-Kreatur interagiert bisher nur simpel mit Säure, Blut und Feuer.
-  Viele Flüssigkeiten und Pulver haben keine Wirkung oder visuelle Rückmeldung.
+[x] (4.6) [ART] Viszerales Skelettierungs- & Decal-System.
+    - Betroffene Dateien: src/py_noita/simulation/grid.py, src/py_noita/rendering/renderer.py
+    - Knochenskelette nach Feindtod, permanente Blutspritzer/Schleimspuren, Brandnarben.
 
-Technische Änderungen:
-  - Umfassendes Statuseffekt-System für die Symbioten-Kreatur:
-    * Galle: Glitschiger Film, reduziert Bodenreibung um 75%, extremes Rutschen,
-      erhöht temporär die Feueranfälligkeit.
-    * Mutagen: Genetischer Überladungs-Schub (+35% Angriffsgeschwindigkeit,
-      schnellere Regeneration, visuelles Leuchten).
-    * Sporen: Reizung der Flagellen, löst impulsartigen Schwebe-Auftrieb aus
-      (Mini-Raketeneffekt / Sporen-Booster).
-    * Eiter: Zähflüssige Verklebung, senkt Bewegungs- und Flugtempo um 35%,
-      erhöht im Gegenzug die Wucht-Schadensresistenz um 20%.
-    * Giftgase / Biogas: Reizhusten und Vergiftungsschaden über Zeit, solange
-      man in der Wolke verweilt.
-  - Körperliche Mutationen (visuelle Reaktionen):
-    * Bei Mutagen- und Sporenkontakt wachsen temporär 2–4 zusätzliche,
-      nervös zuckende Mini-Tentakel aus dem Körper.
-    * Bei Eiterkontakt verfärbt sich der Symbiote gelblich-zäh.
-  - HUD-Statusleiste:
-    * Symbole für aktive Statuseffekte mit Restzeit-Balken am Bildschirmrand.
+[x] (4.7) [GAMEPLAY] Secrets, 11 Ur-Gen-Orbs, 3 Bio-Bosse & 3 alternative Endsequenzen.
+    - Betroffene Dateien: src/py_noita/world/secrets.py, src/py_noita/world/endings.py
+    - Riesen-Helminth, Ur-Fresszelle, Synaptischer Parasit; 3 Enden (Wirtstod, Symbiose, Metamorphose).
 
-Abnahmekriterien:
-  [ ] Kreatur reagiert auf Galle, Mutagen, Sporen, Eiter und Biogas mit
-      spezifischen Vor- und Nachteilen.
-  [ ] Visuelle Mutationen (zuckende Zusatztentakel, Farbwechsel) treten live auf.
-  [ ] Aktive Statuseffekte werden mit Icons im HUD angezeigt.
+[ ] (4.8) [GAMEPLAY] Umfassendes Bio-Statussystem für die Symbioten-Kreatur.
+    - Betroffene Dateien: src/py_noita/entities/player.py
+    - Problem: Reaktionen auf Fluide und Pulver sind bisher auf rudimentäre Säure/Blut/Feuer-Checks beschränkt.
+    - Technische Änderungen:
+      * Galle: Glitschiger Film, reduziert Bodenreibung um 75%, starkes Rutschen, erhöht Entflammbarkeit.
+      * Mutagen: Genetische Hyperaktivität (+35% Feuerrate & Lauftempo, pulsierendes Leuchten).
+      * Sporen: Reizung der Flagellen, löst impulsartigen Schwebe-Auftrieb (Sporen-Booster) aus.
+      * Eiter: Zähflüssige Verklebung, -35% Tempo, gewährt im Gegenzug +20% physische Wucht-Resistenz.
+      * Giftgas / Biogas: Reizhusten mit Schaden über Zeit und leichten Zuckungen bei längerem Verweilen.
+    - Abnahmekriterien:
+      [ ] Jede Substanz löst das entsprechende Gameplay-Verhalten aus.
+
+[ ] (4.9) [ANIMATION] Dynamische körperliche Mutationen bei Substanzkontakt.
+    - Betroffene Dateien: src/py_noita/entities/player.py, src/py_noita/entities/tentacle.py
+    - Technische Änderungen:
+      * Bei Mutagen- und Sporenkontakt sprießen temporär 2–4 zusätzliche zuckende Mini-Tentakel aus dem Körper.
+      * Bei Eiterkontakt verfärbt sich der Symbiote gelblich und Flagellen verkleben visuell.
+    - Abnahmekriterien:
+      [ ] Visuelle Veränderungen am Symbioten treten während der Statuseffekte dynamisch in Erscheinung.
 
 
---------------------------------------------------------------------------------
-[10] FULLSCREEN-SKALIERUNG, HIGH-RES & PIXEL-FILTER
---------------------------------------------------------------------------------
-Betroffene Dateien:
-  - src/py_noita/rendering/renderer.py
-  - src/py_noita/rendering/shaders.py
-  - src/py_noita/main.py
-  - src/py_noita/system/settings_manager.py
+# ==============================================================================
+# BEREICH 5: STEUERUNG, HUD & IN-GAME-INTERAKTION
+# ==============================================================================
+# Bringt die Gameplay- und Audiosysteme auf die Benutzeroberfläche und die
+# unmittelbaren Ein- und Ausgabeschnittstellen des Spielers.
 
-Problemstellung:
-  Im Vollbildmodus erzwingt das Spiel feste 1080p, ignoriert 1440p/4K Monitore
-  und streckt Pixel ungleichmäßig, was zu Pixelflimmern und Artefakten führt.
+[x] (5.1) [AUDIO] Mehrspuriger, dynamisch adaptiver Bio-Horror-Soundtrack & Akustik-Filter.
+    - Betroffene Dateien: src/py_noita/audio/adaptive_music.py, src/py_noita/audio/acoustics.py
+    - Dynamische Kampf-Drums, Tiefpass unter Wasser, dynamischer Höhlenhall, Herzschlag bei <25% HP.
 
-Technische Änderungen:
-  - Native Desktop-Auflösungserkennung im Vollbild via
-    `pygame.display.get_desktop_sizes()` (unterstützt 1440p, 4K, Ultrawide).
-  - Echtes Integer-Scaling (Ganzzahlige Skalierung):
-    * Ermittlung des maximalen ganzzahligen Skalierungsfaktors (z. B. 3x, 4x, 5x, 6x).
-    * Simulation wird exakt mit ganzzahligen Vielfachen auf die Zieloberfläche
-      gezeichnet, um ungleichmäßige Pixelbreiten komplett zu eliminieren.
-    * Gleichmäßige, zentrierte Letterbox/Pillarbox-Ränder bei abweichenden
-      Seitenverhältnissen.
-  - Zuschaltbarer Filter in den Grafikeinstellungen:
-    * Modus "Pixel-Perfekt (Integer Crisp)": Knackscharfe Retro-Pixel.
-    * Modus "Sanftes Filtering (Subpixel Anti-Aliasing)": Subpixel-Glättung
-      über den Post-Processing-Shader gegen Flimmern bei extrem hohen Auflösungen.
+[x] (5.2) [AUDIO] 3D-Stereo-Panning & Umfassendes Soundeffekt-Arsenal (60+ SFX).
+    - Betroffene Dateien: src/py_noita/audio/spatial_audio.py, src/py_noita/audio/sound_catalog.py
+    - Räumliche Ortung von Explosionen und Schritten; schmatzende Gehgeräusche je nach Untergrund.
 
-Abnahmekriterien:
-  [ ] Vollbild nutzt die native Monitorauflösung (z. B. 2560x1440 oder 4K).
-  [ ] Durch Integer-Scaling haben alle Pixel eine exakt identische Größe.
-  [ ] In den Grafikeinstellungen kann zwischen Crisp- und Smooth-Filter
-      gewechselt werden.
-================================================================================
+[ ] (5.3) [INPUT] Hotbar-Mausrad-Steuerung für belegte Slots.
+    - Betroffene Dateien: src/py_noita/input/input_handler.py, src/py_noita/main.py
+    - Problem: Schnelles Durchwechseln von Waffen und Drüsen im Kampf per Mausrad fehlt.
+    - Technische Änderungen:
+      * `pygame.MOUSEWHEEL` und Scroll-Buttons im InputHandler verarbeiten.
+      * Intelligente zyklische Rotation: Springt nur durch BELEGTE Kanülen (1–4) und BEFÜLLTE Drüsen (1–4).
+      * Leere Slots werden beim Scrollen automatisch übersprungen.
+    - Abnahmekriterien:
+      [ ] Mausrad schaltet flüssig durch alle tatsächlich vorhandenen Waffen und gefüllten Drüsen.
+
+[ ] (5.4) [HUD] Dynamischer Splash-Text bei Slot-Wechsel.
+    - Betroffene Dateien: src/py_noita/ui/hud.py, src/py_noita/main.py
+    - Technische Änderungen:
+      * Bei jedem Waffen- oder Drüsenwechsel erscheint am unteren Bildschirmrand ein stilisierter Splash-Text (z. B. "Tentakel-Röhre [4/4]" oder "Drüse: Ätzende Säure [120/150]").
+      * Weiche Alpha-Animation (Fade-In, Halten für 1.2s, sanftes Fade-Out).
+    - Abnahmekriterien:
+      [ ] Spieler erhält sofort klare Rückmeldung über die neu gewählte Ausrüstung.
+
+[ ] (5.5) [HUD] Statusleiste für aktive Bio-Statuseffekte.
+    - Betroffene Dateien: src/py_noita/ui/hud.py
+    - Technische Änderungen:
+      * Symbole für aktive Statuseffekte (Galle-Film, Mutagen-Rausch, Sporen-Schub, Eiter-Panzer, Vergiftung) am Bildschirmrand.
+      * Dezente Restzeit-Balken unter den Icons.
+    - Abnahmekriterien:
+      [ ] Aktive Statuseffekte und deren verbleibende Dauer sind jederzeit klar ablesbar.
+
+[ ] (5.6) [UI] Entzerrung & Dynamische Tooltip-Karten im Heiligen Berg (Incubation Node).
+    - Betroffene Dateien: src/py_noita/world/incubation_node.py, src/py_noita/ui/hover_info.py
+    - Problem: Sockel stehen zu nah beieinander; feste Textlabels überlappen sich unleserlich.
+    - Technische Änderungen:
+      * Feste Textlabels über Sockeln entfernen; durch dezente, pulsierende DNA-/Gensymbole ersetzen.
+      * Dynamische Info-Card bei Annäherung (<35 px) oder Maus-Hover:
+        - Name & Seltenheit (farbcodiert)
+        - Detaillierte Effektbeschreibung & Attributänderungen
+        - Kaufpreis in Biomasse (mit Farbwechsel je nach Kontostand)
+        - Interaktions-Prompt ("[E] Berühren / Kaufen")
+      * Automatische Ausrichtung zur Verhinderung von Bildschirmrand- und Nachbarsockel-Überdeckungen.
+    - Abnahmekriterien:
+      [ ] Keine Textüberlappungen mehr im Heiligen Berg.
+      [ ] Klare, strukturierte Lesbarkeit aller Boni und Shop-Waren vor dem Aufheben.
+
+
+# ==============================================================================
+# BEREICH 6: META-PROGRESSION, MENÜS, SETTINGS & RELEASE
+# ==============================================================================
+# Die oberste Schicht: Übergreifende Progression, Spielspeicherung, Systemeinstellungen,
+# Modding und Packaging für die Verkaufsversion.
+
+[x] (6.1) [SYSTEM] Mid-Run Quicksave & Crash-Recovery.
+    - Betroffene Dateien: src/py_noita/system/save_manager.py
+    - Serialisierung von Welt, Chunks, Spieler, Inventar; Permadeath-Löschung bei Tod.
+
+[x] (6.2) [UI/UX] Vollständiges Einstellungs- und Konfigurationsmenü.
+    - Betroffene Dateien: src/py_noita/ui/settings_menu.py, src/py_noita/system/settings_manager.py
+    - Tastenbelegung, Gamepad-Deadzone, Lautstärkeregler (Master/Musik/SFX/Umgebung).
+
+[x] (6.3) [UI/UX] Barrierefreiheit & Lokalisierung (i18n).
+    - Betroffene Dateien: src/py_noita/system/localization.py
+    - Photosensitivitäts-Schutz, zweisprachiges System (Deutsch und Englisch).
+
+[x] (6.4) [PLATFORM] Steamworks-Integration.
+    - Betroffene Dateien: src/py_noita/system/steamworks.py
+    - 40+ Steam Achievements, Steam Cloud Save, Steam Deck Verifizierung.
+
+[x] (6.5) [MODDING] Lua- / Python-Modding-Schnittstelle.
+    - Betroffene Dateien: src/py_noita/system/mod_manager.py, src/py_noita/system/mod_api.py
+    - Mods-Ladeordner (`mods/`), Event-Hooks für Gene, Materialien und Biome.
+
+[x] (6.6) [PACKAGING] Standalone Single-File Release-Build (.exe) Pipeline.
+    - Betroffene Dateien: build_release.py, py_noita.spec
+    - PyInstaller/Nuitka Windows 64-Bit Standalone-Build ohne externe Abhängigkeiten.
+
+[ ] (6.7) [UI/META] Interaktiver Evolutions- & Forschungsbaum (Mutagen-Labor).
+    - Betroffene Dateien: src/py_noita/ui/evolution_tree.py (neu), src/py_noita/ui/codex.py, src/py_noita/main.py
+    - Problem: Keine In-Game-Visualisierung, wie Stämme, Meta-Gene und Ur-Orbs freigeschaltet werden.
+    - Technische Änderungen:
+      * Neuer Bildschirm "Bio-Labor & Mutationsbaum" (aus dem Hauptmenü via [L] oder Klick auf Mutagen-Konto aufrufbar).
+      * Verzweigter Forschungsbaum-Graph: Knoten für Starter-Stämme, Organ-Modifikatoren und Ur-Gen-Orbs.
+      * Visuelle Unterscheidung: Freigeschaltet, Freischaltbar (genug Mutagen), Gesperrt, Aktiv ausgewählt.
+      * Tooltip-Cards an jedem Knoten mit Kosten, Lore-Text und Gameplay-Vorteilen.
+    - Abnahmekriterien:
+      [ ] Forschungsbaum ist voll interaktiv und speichert Freischaltungen persistent im Kodex.
+
+[ ] (6.8) [UI/META] Transparente Mutagen-Berechnung & Game-Over-Aufschlüsselung.
+    - Betroffene Dateien: src/py_noita/ui/game_over.py, src/py_noita/ui/codex.py
+    - Technische Änderungen:
+      * Anzeige der Formel im Labor und Game-Over-Screen: Tiefe x 25 + Kills x 2 + (Biomasse // 10) + Boss-Boni.
+      * Game-Over- und Sieg-Screen schlüsseln exakt auf, wie sich die verdienten Mutagene zusammensetzen.
+    - Abnahmekriterien:
+      [ ] Der Spieler versteht genau, wie seine Leistung in Mutagen-Essenz umgerechnet wird.
+
+[ ] (6.9) [UI/SETTINGS] Grafikeinstellungs-Integration für Skalierung, Filter & Zoom.
+    - Betroffene Dateien: src/py_noita/ui/settings_menu.py, src/py_noita/system/settings_manager.py
+    - Technische Änderungen:
+      * Menüpunkte für Integer-Scaling (An/Aus), Pixel-Filter (Crisp vs. Smooth) und Kamera-Zoomfaktor (Nah / Standard / Weit) einbinden.
+      * Einstellungen persistent in `settings.json` speichern.
+    - Abnahmekriterien:
+      [ ] Alle neuen Display- und Kamera-Optionen können im Menü konfiguriert werden und bleiben über Spielstarts hinweg erhalten.
+# ==============================================================================
