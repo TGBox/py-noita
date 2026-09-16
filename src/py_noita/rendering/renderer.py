@@ -251,6 +251,8 @@ class Renderer:
         self.surfarray_buffer = np.zeros((self.view_w, self.view_h, 3), dtype=np.uint8)
 
         # Dest rect for letterbox / scaling
+        self.integer_scaling: bool = True
+        self.filter_mode: str = "CRISP"  # "CRISP" or "SMOOTH"
         self.dest_rect = pygame.Rect(0, 0, screen_res[0], screen_res[1])
         self.update_dest_rect(screen_res)
 
@@ -271,8 +273,17 @@ class Renderer:
         self.post_processor = ShaderPostProcessor(self.view_w, self.view_h)
 
     def update_dest_rect(self, screen_res: Tuple[int, int]) -> None:
-        """Calculate scaled destination rectangle preserving pixel aspect ratio."""
+        """Calculate scaled destination rectangle preserving pixel aspect ratio or integer scaling."""
         target_w, target_h = screen_res
+        if self.integer_scaling:
+            scale = max(1, min(target_w // self.view_w, target_h // self.view_h))
+            scaled_w = self.view_w * scale
+            scaled_h = self.view_h * scale
+            offset_x = (target_w - scaled_w) // 2
+            offset_y = (target_h - scaled_h) // 2
+            self.dest_rect = pygame.Rect(offset_x, offset_y, scaled_w, scaled_h)
+            return
+
         aspect_sim = self.view_w / self.view_h
         aspect_screen = target_w / target_h
 
@@ -331,9 +342,13 @@ class Renderer:
             self.update_dest_rect(actual_size)
             self.screen_res = actual_size
 
-        if self.dest_rect.size == actual_size:
-            pygame.transform.scale(render_surf, actual_size, screen)
+        if self.filter_mode == "SMOOTH":
+            scaled = pygame.transform.smoothscale(render_surf, (self.dest_rect.width, self.dest_rect.height))
+        else:
+            scaled = pygame.transform.scale(render_surf, (self.dest_rect.width, self.dest_rect.height))
+
+        if self.dest_rect.size == actual_size and self.dest_rect.topleft == (0, 0):
+            screen.blit(scaled, (0, 0))
         else:
             screen.fill((0, 0, 0))  # Clear black bars
-            scaled = pygame.transform.scale(render_surf, (self.dest_rect.width, self.dest_rect.height))
             screen.blit(scaled, self.dest_rect.topleft)

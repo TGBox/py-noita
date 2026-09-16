@@ -194,8 +194,8 @@ class Player:
         if self.on_ground:
             self.levitation = min(self.max_levitation, self.levitation + PLAYER_LEVITATION_RECHARGE)
         elif not self.is_levitating:
-            # Slower recovery while free-falling
-            self.levitation = min(self.max_levitation, self.levitation + PLAYER_LEVITATION_RECHARGE * 0.25)
+            # Active air recovery while gliding/free-falling
+            self.levitation = min(self.max_levitation, self.levitation + PLAYER_LEVITATION_RECHARGE * 0.6)
 
         # 3. Update Procedural Gripping & Crawling Tentacles (IK)
         facing = 1.0 if self.vx >= -0.01 else -1.0

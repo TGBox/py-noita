@@ -48,14 +48,14 @@ class TestHoverInfo(unittest.TestCase):
         self.assertIsNotNone(t_blood)
         self.assertEqual(t_blood.target_type, "MATERIAL")
         self.assertEqual(t_blood.name, "Blut")
-        self.assertEqual(t_blood.category, "Flüssigkeit")
+        self.assertEqual(t_blood.category, "Körpersekret")
 
         # Acid
         self.grid.set_pixel(25, 25, MAT_ACID)
         t_acid = get_hover_target(self.grid, [], 25.0, 25.0)
         self.assertIsNotNone(t_acid)
         self.assertEqual(t_acid.name, "Säure")
-        self.assertEqual(t_acid.category, "Flüssigkeit")
+        self.assertEqual(t_acid.category, "Ätzendes Sekret")
 
         # Water
         self.grid.set_pixel(30, 30, MAT_WATER)
@@ -70,13 +70,42 @@ class TestHoverInfo(unittest.TestCase):
         t_tissue = get_hover_target(self.grid, [], 40.0, 40.0)
         self.assertIsNotNone(t_tissue)
         self.assertEqual(t_tissue.name, "Gewebe")
-        self.assertEqual(t_tissue.category, "Feststoff")
+        self.assertEqual(t_tissue.category, "Struktur-Biomasse")
 
         self.grid.set_pixel(45, 45, MAT_BONE)
         t_bone = get_hover_target(self.grid, [], 45.0, 45.0)
         self.assertIsNotNone(t_bone)
         self.assertEqual(t_bone.name, "Knochen")
-        self.assertEqual(t_bone.category, "Feststoff")
+        self.assertEqual(t_bone.category, "Skelettstruktur")
+
+    def test_hover_powders(self):
+        """Hovering over powder materials returns biological taxonomy."""
+        from py_noita.simulation.materials import (
+            MAT_CHITIN_SAND,
+            MAT_NECRO_ASH,
+            MAT_FIBRIN_POWDER,
+            MAT_SULFUR_SPORES,
+        )
+        self.grid.set_pixel(50, 50, MAT_CHITIN_SAND)
+        t_sand = get_hover_target(self.grid, [], 50.0, 50.0)
+        self.assertIsNotNone(t_sand)
+        self.assertEqual(t_sand.name, "Chitin-Sand")
+        self.assertEqual(t_sand.category, "Organisches Granulat")
+
+        self.grid.set_pixel(51, 50, MAT_NECRO_ASH)
+        t_ash = get_hover_target(self.grid, [], 51.0, 50.0)
+        self.assertEqual(t_ash.name, "Nekro-Asche")
+        self.assertEqual(t_ash.category, "Geronnener Trockenstoff")
+
+        self.grid.set_pixel(52, 50, MAT_FIBRIN_POWDER)
+        t_fib = get_hover_target(self.grid, [], 52.0, 50.0)
+        self.assertEqual(t_fib.name, "Fibrin-Pulver")
+        self.assertEqual(t_fib.category, "Proteingranulat")
+
+        self.grid.set_pixel(53, 50, MAT_SULFUR_SPORES)
+        t_sulf = get_hover_target(self.grid, [], 53.0, 50.0)
+        self.assertEqual(t_sulf.name, "Schwefel-Sporen")
+        self.assertEqual(t_sulf.category, "Reaktive Sporenmasse")
 
     def test_hover_enemies(self):
         """Hovering over enemies returns enemy info and current HP."""

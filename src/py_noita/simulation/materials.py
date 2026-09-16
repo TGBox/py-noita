@@ -35,6 +35,10 @@ MAT_EGGS = 11
 MAT_ASH = 12
 MAT_BONE_CHIP = 13
 MAT_GOLD = 14
+MAT_CHITIN_SAND = 15
+MAT_NECRO_ASH = 16
+MAT_FIBRIN_POWDER = 17
+MAT_SULFUR_SPORES = 18
 
 
 MAT_BLOOD = 20
@@ -106,6 +110,18 @@ MATERIAL_COLORS: Dict[int, List[Tuple[int, int, int]]] = {
     ],
     MAT_GOLD: [
         (255, 215, 0), (240, 195, 20), (255, 235, 50), (220, 175, 10)
+    ],
+    MAT_CHITIN_SAND: [
+        (75, 58, 80), (90, 70, 95), (62, 48, 68), (105, 82, 110)
+    ],
+    MAT_NECRO_ASH: [
+        (95, 88, 102), (80, 72, 86), (110, 102, 118), (70, 62, 75)
+    ],
+    MAT_FIBRIN_POWDER: [
+        (235, 225, 190), (220, 210, 175), (245, 235, 205), (205, 195, 160)
+    ],
+    MAT_SULFUR_SPORES: [
+        (235, 210, 30), (250, 225, 45), (215, 190, 20), (255, 238, 65)
     ],
     MAT_BLOOD: [
 
@@ -181,14 +197,16 @@ def _init_property_tables() -> None:
     PROP_GLOW[MAT_TENTACLE_FLESH] = 80
 
     # Powders
-    for mat in (MAT_SPORES, MAT_EGGS, MAT_ASH, MAT_BONE_CHIP, MAT_GOLD):
+    for mat in (
+        MAT_SPORES, MAT_EGGS, MAT_ASH, MAT_BONE_CHIP, MAT_GOLD,
+        MAT_CHITIN_SAND, MAT_NECRO_ASH, MAT_FIBRIN_POWDER, MAT_SULFUR_SPORES,
+    ):
         PROP_STATE[mat] = STATE_POWDER
 
     PROP_DENSITY[MAT_GOLD] = 9.0
     PROP_FLAMMABILITY[MAT_GOLD] = 0
     PROP_ACID_VULN[MAT_GOLD] = 0
     PROP_GLOW[MAT_GOLD] = 120
-
 
     PROP_DENSITY[MAT_SPORES] = 1.2
     PROP_FLAMMABILITY[MAT_SPORES] = 90
@@ -206,6 +224,23 @@ def _init_property_tables() -> None:
     PROP_DENSITY[MAT_BONE_CHIP] = 3.5
     PROP_FLAMMABILITY[MAT_BONE_CHIP] = 5
     PROP_ACID_VULN[MAT_BONE_CHIP] = 35
+
+    PROP_DENSITY[MAT_CHITIN_SAND] = 3.2
+    PROP_FLAMMABILITY[MAT_CHITIN_SAND] = 10
+    PROP_ACID_VULN[MAT_CHITIN_SAND] = 15
+
+    PROP_DENSITY[MAT_NECRO_ASH] = 1.0
+    PROP_FLAMMABILITY[MAT_NECRO_ASH] = 0
+    PROP_ACID_VULN[MAT_NECRO_ASH] = 20
+
+    PROP_DENSITY[MAT_FIBRIN_POWDER] = 1.6
+    PROP_FLAMMABILITY[MAT_FIBRIN_POWDER] = 35
+    PROP_ACID_VULN[MAT_FIBRIN_POWDER] = 60
+
+    PROP_DENSITY[MAT_SULFUR_SPORES] = 1.1
+    PROP_FLAMMABILITY[MAT_SULFUR_SPORES] = 98
+    PROP_ACID_VULN[MAT_SULFUR_SPORES] = 90
+    PROP_GLOW[MAT_SULFUR_SPORES] = 80
 
     # Liquids
     for mat in (MAT_BLOOD, MAT_ACID, MAT_BILE, MAT_LYMPH, MAT_PUS, MAT_MUTAGEN, MAT_WATER):
@@ -282,6 +317,10 @@ MATERIAL_NAMES: Dict[int, str] = {
     MAT_ASH: "Asche",
     MAT_BONE_CHIP: "Knochensplitter",
     MAT_GOLD: "Biomasse-Gold",
+    MAT_CHITIN_SAND: "Chitin-Sand",
+    MAT_NECRO_ASH: "Nekro-Asche",
+    MAT_FIBRIN_POWDER: "Fibrin-Pulver",
+    MAT_SULFUR_SPORES: "Schwefel-Sporen",
     MAT_BLOOD: "Blut",
 
     MAT_ACID: "Säure",
@@ -297,7 +336,39 @@ MATERIAL_NAMES: Dict[int, str] = {
     MAT_CORROSION: "Korrosion",
 }
 
-# German state of matter labels
+# German biological material taxonomy / classification
+MATERIAL_TAXONOMY: Dict[int, str] = {
+    MAT_AIR: "",
+    MAT_TISSUE: "Struktur-Biomasse",
+    MAT_BONE: "Skelettstruktur",
+    MAT_CHITIN: "Exoskelett-Panzer",
+    MAT_WALL_BONE: "Verdichtetes Skelett",
+    MAT_NERVE: "Neuro-Leitgewebe",
+    MAT_TENTACLE_FLESH: "Muskuläre Biomasse",
+    MAT_SPORES: "Organisches Granulat",
+    MAT_EGGS: "Parasitoid-Eier",
+    MAT_ASH: "Geronnener Trockenstoff",
+    MAT_BONE_CHIP: "Knochengranulat",
+    MAT_GOLD: "Verkalkte Biomasse",
+    MAT_CHITIN_SAND: "Organisches Granulat",
+    MAT_NECRO_ASH: "Geronnener Trockenstoff",
+    MAT_FIBRIN_POWDER: "Proteingranulat",
+    MAT_SULFUR_SPORES: "Reaktive Sporenmasse",
+    MAT_BLOOD: "Körpersekret",
+    MAT_ACID: "Ätzendes Sekret",
+    MAT_BILE: "Reaktives Fließmittel",
+    MAT_LYMPH: "Körpersekret",
+    MAT_PUS: "Viskoses Sekret",
+    MAT_MUTAGEN: "Mutagenes Elixier",
+    MAT_WATER: "Flüssigkeit",
+    MAT_BIOGAS: "Bio-Aerosol",
+    MAT_TOXIC_VAPOR: "Toxisches Gas",
+    MAT_SMOKE: "Aerosol",
+    MAT_FIRE: "Reaktionsenergie",
+    MAT_CORROSION: "Reaktionsenergie",
+}
+
+# German state of matter labels (fallback)
 STATE_NAMES: Dict[int, str] = {
     STATE_EMPTY: "Vakuum",
     STATE_SOLID: "Feststoff",
@@ -314,7 +385,9 @@ def get_material_name(mat_id: int) -> str:
 
 
 def get_material_category(mat_id: int) -> str:
-    """Return state of matter category name."""
+    """Return specialized biological category name, falling back to state of matter."""
+    if mat_id in MATERIAL_TAXONOMY:
+        return MATERIAL_TAXONOMY[mat_id]
     if 0 <= mat_id < MAX_MATERIALS:
         state = PROP_STATE[mat_id]
         return STATE_NAMES.get(int(state), "")

@@ -33,7 +33,7 @@
     - Betroffene Dateien: src/py_noita/rendering/shadows.py
     - Biolumineszierende Lichtquellen werfen weiche Schatten hinter Knochen- und Gewebehindernissen.
 
-[ ] (1.4) [DISPLAY] Native Desktop-Auflösungserkennung & Echtes Integer-Scaling im Vollbild.
+[x] (1.4) [DISPLAY] Native Desktop-Auflösungserkennung & Echtes Integer-Scaling im Vollbild.
     - Betroffene Dateien: src/py_noita/rendering/renderer.py, src/py_noita/main.py
     - Problem: Fullscreen erzwingt bisher feste 1080p und skaliert ungleichmäßig (Pixelflimmern/Verzerrungen).
     - Technische Änderungen:
@@ -41,18 +41,18 @@
       * Echtes Integer-Scaling: Maximaler ganzzahliger Multiplikator (3x, 4x, 5x, 6x) passend zur nativen Auflösung.
       * Saubere, zentrierte Letterbox/Pillarbox-Balken zur Eliminierung ungleichmäßiger Pixelbreiten.
     - Abnahmekriterien:
-      [ ] Vollbild läuft nativ ohne Desktop-Verzerrung.
-      [ ] Jeder Simulationspixel wird mit exakt identischer Pixelgröße dargestellt.
+      [x] Vollbild läuft nativ ohne Desktop-Verzerrung.
+      [x] Jeder Simulationspixel wird mit exakt identischer Pixelgröße dargestellt.
 
-[ ] (1.5) [RENDER] Wählbare Post-Processing-Filter in den Grafikeinstellungen.
+[x] (1.5) [RENDER] Wählbare Post-Processing-Filter in den Grafikeinstellungen.
     - Betroffene Dateien: src/py_noita/rendering/shaders.py, src/py_noita/rendering/renderer.py, src/py_noita/system/settings_manager.py
     - Technische Änderungen:
       * Modus "Pixel-Perfekt (Integer Crisp)": Knackscharfe, unverfälschte Pixelkanten.
       * Modus "Sanftes Filtering (Subpixel Smooth / Anti-Shimmer)": Weiche Subpixel-Glättung gegen Kantenflimmern bei extrem hohen Auflösungen.
     - Abnahmekriterien:
-      [ ] Filter ist im Einstellungsmenü umschaltbar und wird sofort wirksam.
+      [x] Filter ist im Einstellungsmenü umschaltbar und wird sofort wirksam.
 
-[ ] (1.6) [CAMERA] Viewport-Erweiterung & Dynamischer Maus-Lookahead.
+[x] (1.6) [CAMERA] Viewport-Erweiterung & Dynamischer Maus-Lookahead.
     - Betroffene Dateien: src/py_noita/rendering/camera.py, src/py_noita/config.py, src/py_noita/rendering/renderer.py, src/py_noita/main.py
     - Problem: Die Kamera ist zu nah am Spieler; das Sichtfeld schränkt die Übersicht stark ein.
     - Technische Änderungen:
@@ -60,8 +60,8 @@
       * Sanfter, dynamischer Maus-Lookahead in `Camera.update()`: Verschiebung der Kamera um bis zu 60–80 Pixel in Fadenkreuz-Richtung mit gefilterter Interpolation.
       * Konfigurierbare Zoomstufen (Nah / Standard / Weit) in den Optionen.
     - Abnahmekriterien:
-      [ ] Sichtbarer Kartenausschnitt ist spürbar größer.
-      [ ] Kamera bewegt sich geschmeidig in Zielrichtung der Maus.
+      [x] Sichtbarer Kartenausschnitt ist spürbar größer.
+      [x] Kamera bewegt sich geschmeidig in Zielrichtung der Maus.
 
 
 # ==============================================================================
@@ -93,7 +93,7 @@
     - An Knorpelsehnen hängende Nerven-Lampions (spenden Licht, stürzen bei Treffern ab und entzünden den Boden).
     - Schwingende Fleischklumpen und Decken-Tentakel.
 
-[ ] (2.5) [BALANCE] Flugsteuerung & Schwebe-Ausdauer (Levitation Rebalance).
+[x] (2.5) [BALANCE] Flugsteuerung & Schwebe-Ausdauer (Levitation Rebalance).
     - Betroffene Dateien: src/py_noita/config.py, src/py_noita/entities/player.py
     - Problem: Ausdauer entlädt sich schnell und lädt am Boden über 3 Sekunden lang auf.
     - Technische Änderungen:
@@ -101,10 +101,10 @@
       * Luft-Regeneration im freien Fall von 0.25x auf mindestens 0.6x des Bodenwerts anheben (Belohnung für Gleiten).
       * `PLAYER_HOVER_IMPULSE` feiner abstimmen für kontrolliertes Schweben ohne abruptes Anstoßen an Decken.
     - Abnahmekriterien:
-      [ ] Boden-Aufladung der Ausdauer dauert unter 1.0 Sekunde.
-      [ ] Gleiten im freien Fall regeneriert spürbar Ausdauer.
+      [x] Boden-Aufladung der Ausdauer dauert unter 1.0 Sekunde.
+      [x] Gleiten im freien Fall regeneriert spürbar Ausdauer.
 
-[ ] (2.6) [MATERIALS] Erweiterung der Materialpalette um bio-organische Pulverarten.
+[x] (2.6) [MATERIALS] Erweiterung der Materialpalette um bio-organische Pulverarten.
     - Betroffene Dateien: src/py_noita/simulation/materials.py
     - Technische Änderungen:
       * Neue Material-IDs definieren und in Numba-Eigenschaftstabellen (Dichte, Brennbarkeit, Säureresistenz) registrieren:
@@ -113,15 +113,15 @@
         - `MAT_FIBRIN_POWDER` (gerinnungsförderndes Proteingranulat)
         - `MAT_SULFUR_SPORES` (hochentzündliches Pulver mit Feuerausbreitung)
     - Abnahmekriterien:
-      [ ] Neue Pulverpartikel besitzen eigene Farbpaletten, physikalisches Fließverhalten und Reaktionsprofile.
+      [x] Neue Pulverpartikel besitzen eigene Farbpaletten, physikalisches Fließverhalten und Reaktionsprofile.
 
-[ ] (2.7) [MATERIALS] Biologische Material-Taxonomie & Tooltip-Klassifizierung.
+[x] (2.7) [MATERIALS] Biologische Material-Taxonomie & Tooltip-Klassifizierung.
     - Betroffene Dateien: src/py_noita/simulation/materials.py, src/py_noita/ui/hover_info.py
     - Problem: Tooltips bezeichnen viele Stoffe generisch als "Pulver" oder "Feststoff".
     - Technische Änderungen:
       * `get_material_category(mat_id)` erweitern: Spezifische biologische Kategorien (z. B. "Struktur-Biomasse", "Organisches Granulat", "Geronnener Trockenstoff", "Ätzendes Sekret", "Reaktives Fließmittel").
     - Abnahmekriterien:
-      [ ] Tooltips zeigen differenzierte, thematisch passende Klassifizierungen.
+      [x] Tooltips zeigen differenzierte, thematisch passende Klassifizierungen.
 
 
 # ==============================================================================

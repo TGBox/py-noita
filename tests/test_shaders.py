@@ -108,8 +108,13 @@ class TestShadersAndPostProcessing(unittest.TestCase):
         # Must not throw ValueError
         renderer.present(resized_screen)
         self.assertEqual(renderer.screen_res, (2560, 1017))
-        self.assertEqual(renderer.dest_rect.height, 1017)
+        # With integer scaling on view_h=360, scale factor is 2x -> height is 720
+        self.assertEqual(renderer.dest_rect.height, 720)
         self.assertLessEqual(renderer.dest_rect.width, 2560)
+        
+        # Test SMOOTH filter mode present
+        renderer.filter_mode = "SMOOTH"
+        renderer.present(resized_screen)
 
 
 if __name__ == "__main__":

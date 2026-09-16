@@ -24,8 +24,10 @@ class Camera:
         self.max_shake_offset: float = 8.0
         self.shake_scale: float = 1.0
 
-        # Look-ahead weight towards mouse aim
-        self.look_ahead_weight: float = 0.25
+        # Look-ahead weight towards mouse aim and distance clamping
+        self.look_ahead_weight: float = 0.35
+        self.max_look_ahead_distance: float = 80.0
+        self.zoom_level: float = 1.0
 
     def set_viewport_size(self, width: int, height: int) -> None:
         """Update viewport dimensions (e.g. when switching 16:9 vs 21:9)."""
@@ -52,9 +54,17 @@ class Camera:
         lerp_speed: float = 0.12,
     ) -> None:
         """Update camera center with look-ahead towards aim point."""
-        # Calculate target center including look-ahead
-        desired_center_x = focus_x + (aim_x - focus_x) * self.look_ahead_weight
-        desired_center_y = focus_y + (aim_y - focus_y) * self.look_ahead_weight
+        # Calculate target center including look-ahead with distance clamping
+        diff_x = (aim_x - focus_x) * self.look_ahead_weight
+        diff_y = (aim_y - focus_y) * self.look_ahead_weight
+        dist = math.hypot(diff_x, diff_y)
+        if dist > self.max_look_ahead_distance:
+            scale = self.max_look_ahead_distance / dist
+            diff_x *= scale
+            diff_y *= scale
+
+        desired_center_x = focus_x + diff_x
+        desired_center_y = focus_y + diff_y
 
         # Top-left corner
         dest_x = desired_center_x - self.view_width / 2.0

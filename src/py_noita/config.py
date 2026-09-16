@@ -11,17 +11,19 @@ RES_WINDOWED_1080: Tuple[int, int] = (1280, 720)
 RES_WINDOWED_UW: Tuple[int, int] = (1680, 720)
 
 # Pixel Scale Factor: 1 simulation pixel = PIXEL_SCALE screen pixels
-PIXEL_SCALE: int = 4
+PIXEL_SCALE: int = 3
 
-# Viewport simulation grid size (calculated from screen res // PIXEL_SCALE)
-# For Full HD (1920x1080): 480 x 270
-VIEWPORT_SIM_WIDTH_16_9: int = 1920 // PIXEL_SCALE   # 480
-VIEWPORT_SIM_WIDTH_21_9: int = 2560 // PIXEL_SCALE   # 640
-VIEWPORT_SIM_HEIGHT: int = 1080 // PIXEL_SCALE       # 270
+# Viewport simulation grid size (~30-40% wider field of view)
+# For Full HD (1920x1080): 640 x 360 (exact 3x integer scale)
+# For 1440p (2560x1440): exact 4x integer scale
+# For 4K (3840x2160): exact 6x integer scale
+VIEWPORT_SIM_WIDTH_16_9: int = 640
+VIEWPORT_SIM_WIDTH_21_9: int = 854
+VIEWPORT_SIM_HEIGHT: int = 360
 
 # World / Biome dimensions (in simulation pixels)
-WORLD_WIDTH: int = 960         # 2 full screens wide in 16:9
-WORLD_HEIGHT: int = 1620       # 6 full screens deep in 16:9
+WORLD_WIDTH: int = 1280        # Generous horizontal exploration space (40 chunks)
+WORLD_HEIGHT: int = 1800       # Deep vertical subterranean descent (56 chunks)
 
 # Simulation performance settings
 CHUNK_SIZE: int = 32           # Chunks of 32x32 pixels for active dirty tracking
@@ -32,10 +34,10 @@ GRAVITY: float = 0.28          # Gravitational acceleration per tick for particl
 # Player Settings
 PLAYER_MAX_HP: float = 100.0
 PLAYER_MAX_LEVITATION: float = 100.0
-PLAYER_LEVITATION_RECHARGE: float = 0.55
+PLAYER_LEVITATION_RECHARGE: float = 2.2    # Fully recharges in ~0.75-0.8s on ground
 PLAYER_LEVITATION_DRAIN: float = 0.85
 PLAYER_MOVE_SPEED: float = 1.4
-PLAYER_HOVER_IMPULSE: float = 0.35
+PLAYER_HOVER_IMPULSE: float = 0.38
 PLAYER_WIDTH: int = 8          # in simulation pixels
 PLAYER_HEIGHT: int = 12        # in simulation pixels
 
