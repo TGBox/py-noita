@@ -140,7 +140,7 @@
     - Biom 1 (Cutis), Biom 2 (Vaskulär), Biom 3 (Magensäure), Biom 4 (Gallen-Lagune),
       Biom 5 (Lunge), Biom 6 (Katakomben), Biom 7 (Wirbelsäule), Biom 8 (Ur-Zentrum).
 
-[ ] (3.3) [WORLD] Noita-artige Schichten-Architektur (Horizontale Strata & Schächte).
+[x] (3.3) [WORLD] Noita-artige Schichten-Architektur (Horizontale Strata & Schächte).
     - Betroffene Dateien: src/py_noita/world/generator.py, src/py_noita/world/biome.py
     - Problem: Bisherige Zufallsgräber erzeugen fast ausschließlich vertikale Röhren.
     - Technische Änderungen:
@@ -149,19 +149,19 @@
       * Horizontale Fels-/Knochenbarrieren zwischen den Schichten etablieren.
       * Vereinzelte, gezielt gesetzte Fallschächte, Säureschluchten und verwinkelte Passagen als vertikale Übergänge schaffen.
     - Abnahmekriterien:
-      [ ] Levels bieten primär horizontale Erkundung mit gezielten vertikalen Abgängen.
-      [ ] Kein unkontrolliertes senkrechtes Durchfallen durch den gesamten Level.
+      [x] Levels bieten primär horizontale Erkundung mit gezielten vertikalen Abgängen.
+      [x] Kein unkontrolliertes senkrechtes Durchfallen durch den gesamten Level.
 
-[ ] (3.4) [WORLD] Organische Pulver-Verteilung & Vorab-Simulation (Settling).
+[x] (3.4) [WORLD] Organische Pulver-Verteilung & Vorab-Simulation (Settling).
     - Betroffene Dateien: src/py_noita/world/generator.py
     - Problem: Pulverhaufen spawnen mitten in der Luft und fallen beim Spielstart herab.
     - Technische Änderungen:
       * Pulveransammlungen nur auf festem Untergrund, in Mulden, Dünen und Nischen platzieren.
       * Kurzer Vorab-Simulationsschritt während des Generierens, sodass lose Partikel bereits vor Levelstart zur Ruhe kommen.
     - Abnahmekriterien:
-      [ ] Nach dem Laden des Levels fallen keine Pulverhaufen mehr abrupt aus der Luft.
+      [x] Nach dem Laden des Levels fallen keine Pulverhaufen mehr abrupt aus der Luft.
 
-[ ] (3.5) [SYSTEM] Animierter Bio-Ladebildschirm mit Generierungs-Feedback.
+[x] (3.5) [SYSTEM] Animierter Bio-Ladebildschirm mit Generierungs-Feedback.
     - Betroffene Dateien: src/py_noita/main.py, src/py_noita/world/generator.py
     - Problem: Spiel friert beim Laden eines Levels stumm ein ("Keine Rückmeldung").
     - Technische Änderungen:
@@ -170,7 +170,7 @@
         (15%: "Kavernen wachsen...", 40%: "Wände verhärten...", 65%: "Fluide fließen ein...", 85%: "Wächter erwachen...", 100%: "Bereit").
       * `pygame.display.flip()` und `pygame.event.pump()` zwischen den Phasen aufrufen.
     - Abnahmekriterien:
-      [ ] Spielstart und Biome-Wechsel zeigen kontinuierliches visuelles Feedback ohne Fenster-Freeze.
+      [x] Spielstart und Biome-Wechsel zeigen kontinuierliches visuelles Feedback ohne Fenster-Freeze.
 
 
 # ==============================================================================
@@ -207,7 +207,7 @@
     - Betroffene Dateien: src/py_noita/world/secrets.py, src/py_noita/world/endings.py
     - Riesen-Helminth, Ur-Fresszelle, Synaptischer Parasit; 3 Enden (Wirtstod, Symbiose, Metamorphose).
 
-[ ] (4.8) [GAMEPLAY] Umfassendes Bio-Statussystem für die Symbioten-Kreatur.
+[x] (4.8) [GAMEPLAY] Umfassendes Bio-Statussystem für die Symbioten-Kreatur.
     - Betroffene Dateien: src/py_noita/entities/player.py
     - Problem: Reaktionen auf Fluide und Pulver sind bisher auf rudimentäre Säure/Blut/Feuer-Checks beschränkt.
     - Technische Änderungen:
@@ -217,15 +217,15 @@
       * Eiter: Zähflüssige Verklebung, -35% Tempo, gewährt im Gegenzug +20% physische Wucht-Resistenz.
       * Giftgas / Biogas: Reizhusten mit Schaden über Zeit und leichten Zuckungen bei längerem Verweilen.
     - Abnahmekriterien:
-      [ ] Jede Substanz löst das entsprechende Gameplay-Verhalten aus.
+      [x] Jede Substanz löst das entsprechende Gameplay-Verhalten aus.
 
-[ ] (4.9) [ANIMATION] Dynamische körperliche Mutationen bei Substanzkontakt.
+[x] (4.9) [ANIMATION] Dynamische körperliche Mutationen bei Substanzkontakt.
     - Betroffene Dateien: src/py_noita/entities/player.py, src/py_noita/entities/tentacle.py
     - Technische Änderungen:
       * Bei Mutagen- und Sporenkontakt sprießen temporär 2–4 zusätzliche zuckende Mini-Tentakel aus dem Körper.
       * Bei Eiterkontakt verfärbt sich der Symbiote gelblich und Flagellen verkleben visuell.
     - Abnahmekriterien:
-      [ ] Visuelle Veränderungen am Symbioten treten während der Statuseffekte dynamisch in Erscheinung.
+      [x] Visuelle Veränderungen am Symbioten treten während der Statuseffekte dynamisch in Erscheinung.
 
 
 # ==============================================================================
@@ -242,7 +242,7 @@
     - Betroffene Dateien: src/py_noita/audio/spatial_audio.py, src/py_noita/audio/sound_catalog.py
     - Räumliche Ortung von Explosionen und Schritten; schmatzende Gehgeräusche je nach Untergrund.
 
-[ ] (5.3) [INPUT] Hotbar-Mausrad-Steuerung für belegte Slots.
+[x] (5.3) [INPUT] Hotbar-Mausrad-Steuerung für belegte Slots.
     - Betroffene Dateien: src/py_noita/input/input_handler.py, src/py_noita/main.py
     - Problem: Schnelles Durchwechseln von Waffen und Drüsen im Kampf per Mausrad fehlt.
     - Technische Änderungen:
@@ -250,25 +250,25 @@
       * Intelligente zyklische Rotation: Springt nur durch BELEGTE Kanülen (1–4) und BEFÜLLTE Drüsen (1–4).
       * Leere Slots werden beim Scrollen automatisch übersprungen.
     - Abnahmekriterien:
-      [ ] Mausrad schaltet flüssig durch alle tatsächlich vorhandenen Waffen und gefüllten Drüsen.
+      [x] Mausrad schaltet flüssig durch alle tatsächlich vorhandenen Waffen und gefüllten Drüsen.
 
-[ ] (5.4) [HUD] Dynamischer Splash-Text bei Slot-Wechsel.
+[x] (5.4) [HUD] Dynamischer Splash-Text bei Slot-Wechsel.
     - Betroffene Dateien: src/py_noita/ui/hud.py, src/py_noita/main.py
     - Technische Änderungen:
       * Bei jedem Waffen- oder Drüsenwechsel erscheint am unteren Bildschirmrand ein stilisierter Splash-Text (z. B. "Tentakel-Röhre [4/4]" oder "Drüse: Ätzende Säure [120/150]").
       * Weiche Alpha-Animation (Fade-In, Halten für 1.2s, sanftes Fade-Out).
     - Abnahmekriterien:
-      [ ] Spieler erhält sofort klare Rückmeldung über die neu gewählte Ausrüstung.
+      [x] Spieler erhält sofort klare Rückmeldung über die neu gewählte Ausrüstung.
 
-[ ] (5.5) [HUD] Statusleiste für aktive Bio-Statuseffekte.
+[x] (5.5) [HUD] Statusleiste für aktive Bio-Statuseffekte.
     - Betroffene Dateien: src/py_noita/ui/hud.py
     - Technische Änderungen:
       * Symbole für aktive Statuseffekte (Galle-Film, Mutagen-Rausch, Sporen-Schub, Eiter-Panzer, Vergiftung) am Bildschirmrand.
       * Dezente Restzeit-Balken unter den Icons.
     - Abnahmekriterien:
-      [ ] Aktive Statuseffekte und deren verbleibende Dauer sind jederzeit klar ablesbar.
+      [x] Aktive Statuseffekte und deren verbleibende Dauer sind jederzeit klar ablesbar.
 
-[ ] (5.6) [UI] Entzerrung & Dynamische Tooltip-Karten im Heiligen Berg (Incubation Node).
+[x] (5.6) [UI] Entzerrung & Dynamische Tooltip-Karten im Heiligen Berg (Incubation Node).
     - Betroffene Dateien: src/py_noita/world/incubation_node.py, src/py_noita/ui/hover_info.py
     - Problem: Sockel stehen zu nah beieinander; feste Textlabels überlappen sich unleserlich.
     - Technische Änderungen:
@@ -280,8 +280,8 @@
         - Interaktions-Prompt ("[E] Berühren / Kaufen")
       * Automatische Ausrichtung zur Verhinderung von Bildschirmrand- und Nachbarsockel-Überdeckungen.
     - Abnahmekriterien:
-      [ ] Keine Textüberlappungen mehr im Heiligen Berg.
-      [ ] Klare, strukturierte Lesbarkeit aller Boni und Shop-Waren vor dem Aufheben.
+      [x] Keine Textüberlappungen mehr im Heiligen Berg.
+      [x] Klare, strukturierte Lesbarkeit aller Boni und Shop-Waren vor dem Aufheben.
 
 
 # ==============================================================================

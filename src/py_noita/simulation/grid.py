@@ -297,3 +297,24 @@ class SimulationGrid:
 
         self.total_moved = moved
         return moved
+
+    def settle_world(self, steps: int = 15) -> None:
+        """Pre-simulate loose powders and liquids across the entire grid so they settle naturally."""
+        for _ in range(steps):
+            self.frame_count += 1
+            simulate_step(
+                self.grid,
+                self.life,
+                self.color_var,
+                1,
+                self.width - 2,
+                1,
+                self.height - 2,
+                self.frame_count,
+                PROP_STATE,
+                PROP_DENSITY,
+                PROP_FLAMMABILITY,
+                PROP_ACID_VULN,
+                PROP_DISPERSION,
+                PROP_LIFETIME,
+            )

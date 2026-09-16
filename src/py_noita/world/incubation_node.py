@@ -36,15 +36,16 @@ class PerkPedestal:
         sy = int(self.y - cam_y)
 
         # Pedestal base
-        pygame.draw.rect(surface, (140, 130, 120), (sx - 6, sy + 8, 12, 4))
-        # Floating pulsating DNA orb
-        glow_rad = 5
-        pygame.draw.circle(surface, self.perk.color, (sx, sy), glow_rad)
-        pygame.draw.circle(surface, (255, 255, 255), (sx, sy), 2)
+        pygame.draw.rect(surface, (90, 80, 75), (sx - 7, sy + 7, 14, 5), border_radius=1)
+        pygame.draw.rect(surface, (130, 120, 110), (sx - 5, sy + 3, 10, 4))
 
-        # Name label
-        label = font.render(self.perk.name, True, (240, 230, 200))
-        surface.blit(label, (sx - label.get_width() // 2, sy - 14))
+        # Floating pulsating DNA orb
+        import math
+        t = pygame.time.get_ticks() * 0.005
+        float_y = sy + int(math.sin(t * 2.0 + self.x * 0.1) * 2.5)
+        pulse_r = int(5 + math.sin(t * 3.0 + self.x * 0.1) * 1.5)
+        pygame.draw.circle(surface, self.perk.color, (sx, float_y), pulse_r)
+        pygame.draw.circle(surface, (255, 255, 255), (sx, float_y), 2)
 
 
 class ShopItem:
@@ -66,11 +67,21 @@ class ShopItem:
 
         # Pod base
         col = (220, 180, 70) if not self.is_cannula else (180, 80, 220)
-        pygame.draw.rect(surface, col, (sx - 7, sy - 7, 14, 14), border_radius=3)
+        pygame.draw.rect(surface, (35, 30, 42), (sx - 8, sy - 8, 16, 16), border_radius=3)
+        pygame.draw.rect(surface, col, (sx - 8, sy - 8, 16, 16), 1, border_radius=3)
 
-        # Cost text
-        cost_text = font.render(f"{self.cost} B", True, (255, 220, 100))
-        surface.blit(cost_text, (sx - cost_text.get_width() // 2, sy + 9))
+        # Inner glyph
+        if not self.is_cannula:
+            gene_col = getattr(self.item, "color", (240, 200, 80))
+            pygame.draw.circle(surface, gene_col, (sx, sy), 4)
+            pygame.draw.circle(surface, (255, 255, 255), (sx, sy), 1)
+        else:
+            pygame.draw.line(surface, col, (sx - 4, sy), (sx + 4, sy), 2)
+            pygame.draw.circle(surface, (255, 255, 255), (sx + 4, sy), 1)
+
+        # Compact cost badge underneath
+        cost_text = font.render(f"{self.cost}B", True, (255, 220, 100))
+        surface.blit(cost_text, (sx - cost_text.get_width() // 2, sy + 10))
 
 
 class IncubationNode:
@@ -174,7 +185,7 @@ class IncubationNode:
                 ShopItem(shop_start_x + (j + 1) * 32, self.y + self.height - 30, g, cost=cost, is_cannula=False)
             )
 
-    def update(self, player) -> Optional[MutationPerk]:
+    def update(self, player, interact_pressed: bool = False) -> Optional[MutationPerk]:
         """Check player interaction with healing pool, perks, and shop."""
         # 1. Healing Pool
         hx, hy = self.heal_pool_pos
@@ -187,7 +198,7 @@ class IncubationNode:
         for ped in self.pedestals:
             if not ped.collected:
                 dist = abs(player.center_x - ped.x) + abs(player.center_y - ped.y)
-                if dist < 18:
+                if (dist < 22 and interact_pressed) or dist < 14:
                     ped.collected = True
                     # Discard other pedestals (choose 1 of 3 like Noita)
                     for other in self.pedestals:
@@ -198,7 +209,7 @@ class IncubationNode:
         for item in self.shop_items:
             if not item.purchased:
                 dist = abs(player.center_x - item.x) + abs(player.center_y - item.y)
-                if dist < 16 and player.biomass_currency >= item.cost:
+                if ((dist < 22 and interact_pressed) or dist < 14) and player.biomass_currency >= item.cost:
                     player.biomass_currency -= item.cost
                     item.purchased = True
                     if item.is_cannula:
@@ -218,8 +229,101 @@ class IncubationNode:
 
         return None
 
-    def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int, font: pygame.font.Font) -> None:
-        """Render pedestals, shop items, and room markers."""
+    def _draw_info_card(
+        self,
+        surface: pygame.Surface,
+        cam_x: int,
+        cam_y: int,
+        font: pygame.font.Font,
+        title: str,
+        category: str,
+        desc_lines: List[str],
+        cost_text: Optional[str] = None,
+        cost_affordable: bool = True,
+        prompt: str = "[E] Berühren",
+        accent_color: Tuple[int, int, int] = (220, 200, 80),
+        world_x: float = 0.0,
+        world_y: float = 0.0,
+    ) -> None:
+        """Render a styled floating info card without obscuring neighboring pedestals."""
+        # Render text surfaces
+        cat_surf = font.render(category, True, (160, 160, 180))
+        title_surf = font.render(title, True, accent_color)
+        rendered_desc = [font.render(line, True, (215, 215, 225)) for line in desc_lines]
+        cost_surf = None
+        if cost_text:
+            cost_col = (110, 255, 130) if cost_affordable else (255, 90, 90)
+            cost_surf = font.render(cost_text, True, cost_col)
+        prompt_surf = font.render(prompt, True, (255, 230, 110))
+
+        # Measure dimensions
+        all_surfs = [cat_surf, title_surf] + rendered_desc
+        if cost_surf:
+            all_surfs.append(cost_surf)
+        all_surfs.append(prompt_surf)
+
+        pad_x = 8
+        pad_y = 6
+        line_spacing = 2
+        card_w = max(130, max(s.get_width() for s in all_surfs) + pad_x * 2)
+        card_h = pad_y * 2 + sum(s.get_height() for s in all_surfs) + line_spacing * (len(all_surfs) - 1) + 4
+
+        # Calculate position centered over pedestal
+        cx = int(world_x - cam_x)
+        cy = int(world_y - cam_y)
+        card_x = cx - card_w // 2
+        card_y = cy - card_h - 18
+
+        # Prevent clipping beyond screen bounds
+        sw = surface.get_width()
+        sh = surface.get_height()
+        card_x = max(6, min(card_x, sw - card_w - 6))
+        if card_y < 6:
+            card_y = cy + 24
+        card_y = max(6, min(card_y, sh - card_h - 6))
+
+        # Render panel
+        card_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
+        card_surf.fill((18, 16, 26, 235))
+        pygame.draw.rect(card_surf, accent_color, (0, 0, card_w, card_h), 1, border_radius=4)
+        # Separator line under title
+        sep_y = pad_y + cat_surf.get_height() + line_spacing + title_surf.get_height() + 2
+        pygame.draw.line(card_surf, (accent_color[0] // 2, accent_color[1] // 2, accent_color[2] // 2), (pad_x, sep_y), (card_w - pad_x, sep_y), 1)
+
+        # Blit text
+        curr_y = pad_y
+        card_surf.blit(cat_surf, (pad_x, curr_y))
+        curr_y += cat_surf.get_height() + line_spacing
+
+        card_surf.blit(title_surf, (pad_x, curr_y))
+        curr_y += title_surf.get_height() + line_spacing + 4
+
+        for ds in rendered_desc:
+            card_surf.blit(ds, (pad_x, curr_y))
+            curr_y += ds.get_height() + line_spacing
+
+        if cost_surf:
+            curr_y += 2
+            card_surf.blit(cost_surf, (pad_x, curr_y))
+            curr_y += cost_surf.get_height() + line_spacing
+
+        curr_y += 2
+        card_surf.blit(prompt_surf, (pad_x, curr_y))
+
+        surface.blit(card_surf, (card_x, card_y))
+
+    def draw(
+        self,
+        surface: pygame.Surface,
+        cam_x: int,
+        cam_y: int,
+        font: pygame.font.Font,
+        player=None,
+        mouse_world: Optional[Tuple[float, float]] = None,
+    ) -> None:
+        """Render pedestals, shop items, and room markers with dynamic tooltip cards."""
+        import math
+
         # Draw pedestals
         for ped in self.pedestals:
             ped.draw(surface, cam_x, cam_y, font)
@@ -242,12 +346,138 @@ class IncubationNode:
             ssx = int(spx - cam_x)
             ssy = int(spy - cam_y)
             if -50 <= ssx <= surface.get_width() + 50:
-                import math
                 pulse = math.sin(pygame.time.get_ticks() * 0.006) * 2.5
                 pygame.draw.circle(surface, (180, 210, 30), (ssx, ssy), int(14 + pulse), 2)
                 pygame.draw.circle(surface, (140, 180, 20), (ssx, ssy), 7)
                 side_label = font.render(f"[SEITENPFAD: {self.side_biome_name.upper()}]", True, (210, 240, 90))
                 surface.blit(side_label, (ssx - side_label.get_width() // 2, ssy - 22))
+
+        # Dynamic single info card for closest focused pedestal or shop item
+        focused_target = None
+        min_dist = float("inf")
+
+        # 1. Check mouse hover first (< 22px)
+        if mouse_world is not None:
+            mx, my = mouse_world
+            for ped in self.pedestals:
+                if not ped.collected:
+                    d = math.hypot(mx - ped.x, my - ped.y)
+                    if d < 22.0 and d < min_dist:
+                        min_dist = d
+                        focused_target = ("PERK", ped)
+            for item in self.shop_items:
+                if not item.purchased:
+                    d = math.hypot(mx - item.x, my - item.y)
+                    if d < 22.0 and d < min_dist:
+                        min_dist = d
+                        focused_target = ("SHOP", item)
+
+        # 2. If no mouse hover, check player proximity (< 35px)
+        if focused_target is None and player is not None:
+            px, py = player.center_x, player.center_y
+            for ped in self.pedestals:
+                if not ped.collected:
+                    d = math.hypot(px - ped.x, py - ped.y)
+                    if d < 35.0 and d < min_dist:
+                        min_dist = d
+                        focused_target = ("PERK", ped)
+            for item in self.shop_items:
+                if not item.purchased:
+                    d = math.hypot(px - item.x, py - item.y)
+                    if d < 35.0 and d < min_dist:
+                        min_dist = d
+                        focused_target = ("SHOP", item)
+
+        if focused_target is not None:
+            target_type, target_obj = focused_target
+            if target_type == "PERK":
+                ped = target_obj
+                perk = ped.perk
+                cat = "[HOHE MUTATION]" if perk.is_high_risk else "[GEN-MUTATION]"
+                acc = (255, 85, 85) if perk.is_high_risk else perk.color
+                prompt = "[E] Assimilieren"
+                # Split description into manageable lines
+                words = perk.description.split()
+                lines = []
+                curr = ""
+                for w in words:
+                    test = f"{curr} {w}".strip()
+                    if font.size(test)[0] <= 165:
+                        curr = test
+                    else:
+                        if curr:
+                            lines.append(curr)
+                        curr = w
+                if curr:
+                    lines.append(curr)
+
+                self._draw_info_card(
+                    surface,
+                    cam_x,
+                    cam_y,
+                    font,
+                    title=perk.name,
+                    category=cat,
+                    desc_lines=lines,
+                    cost_text=None,
+                    cost_affordable=True,
+                    prompt=prompt,
+                    accent_color=acc,
+                    world_x=ped.x,
+                    world_y=ped.y,
+                )
+            elif target_type == "SHOP":
+                item = target_obj
+                player_bio = player.biomass_currency if player else 0
+                affordable = player_bio >= item.cost
+                cost_text = f"Kosten: {item.cost} Biomasse" if affordable else f"Kosten: {item.cost} Biomasse (Fehlt!)"
+                prompt = "[E] Kaufen" if affordable else "[Zu wenig Biomasse]"
+
+                if item.is_cannula:
+                    c = item.item
+                    cat = "[ORGAN-KANÜLE]"
+                    title = c.name
+                    acc = (200, 110, 240)
+                    lines = [
+                        f"Kapazität: {c.capacity} | Streuung: {c.spread}°",
+                        f"Verzögerung: {c.cast_delay}s | Ladez.: {c.recharge_time}s",
+                        f"Biomasse: {c.biomass_max} (+{c.biomass_recharge}/s)",
+                    ]
+                else:
+                    g = item.item
+                    cat = f"[GEN: {g.gene_type}]"
+                    title = g.name
+                    acc = getattr(g, "color", (240, 200, 80))
+                    words = g.description.split()
+                    lines = []
+                    curr = ""
+                    for w in words:
+                        test = f"{curr} {w}".strip()
+                        if font.size(test)[0] <= 165:
+                            curr = test
+                        else:
+                            if curr:
+                                lines.append(curr)
+                            curr = w
+                    if curr:
+                        lines.append(curr)
+                    lines.append(f"Verbrauch: {g.biomass_cost} Biomasse")
+
+                self._draw_info_card(
+                    surface,
+                    cam_x,
+                    cam_y,
+                    font,
+                    title=title,
+                    category=cat,
+                    desc_lines=lines,
+                    cost_text=cost_text,
+                    cost_affordable=affordable,
+                    prompt=prompt,
+                    accent_color=acc,
+                    world_x=item.x,
+                    world_y=item.y,
+                )
 
     def is_player_in_side_portal(self, player) -> bool:
         """Check if player is stepping through the side path portal."""

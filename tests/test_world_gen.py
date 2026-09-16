@@ -45,6 +45,51 @@ class TestWorldGeneration(unittest.TestCase):
         self.assertEqual(len(node.pedestals), 3, "Must have exactly 3 mutation perks")
         self.assertGreater(len(node.shop_items), 0, "Shop must contain items")
 
+    def test_incubation_node_tooltips_and_interaction(self):
+        """Verify dynamic tooltip cards render properly without errors and [E] interaction collects perks/items."""
+        import pygame
+        pygame.font.init()
+        font = pygame.font.SysFont("consolas", 9)
+        test_surf = pygame.Surface((400, 300))
+
+        node = IncubationNode(start_x=50, start_y=50, width=300, height=120)
+        node.generate_structure(self.grid)
+
+        # Mock player
+        class DummyPlayer:
+            def __init__(self, x, y):
+                self.center_x = x
+                self.center_y = y
+                self.max_hp = 100
+                self.hp = 50
+                self.biomass_currency = 500
+                self.cannulas = []
+                self.active_cannula_index = 0
+
+            def heal(self, amount):
+                self.hp = min(self.max_hp, self.hp + amount)
+
+        player = DummyPlayer(60, 60)
+
+        # Draw without focus (far away)
+        node.draw(test_surf, cam_x=0, cam_y=0, font=font, player=player)
+
+        # Focus via mouse hover on pedestal 0
+        ped = node.pedestals[0]
+        node.draw(test_surf, cam_x=0, cam_y=0, font=font, player=player, mouse_world=(ped.x, ped.y))
+
+        # Focus via player proximity on shop item 0
+        shop_item = node.shop_items[0]
+        player.center_x = shop_item.x
+        player.center_y = shop_item.y
+        node.draw(test_surf, cam_x=0, cam_y=0, font=font, player=player)
+
+        # Test interaction with [E]
+        init_bio = player.biomass_currency
+        node.update(player, interact_pressed=True)
+        self.assertTrue(shop_item.purchased)
+        self.assertLess(player.biomass_currency, init_bio)
+
 
 if __name__ == "__main__":
     unittest.main()

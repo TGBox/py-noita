@@ -29,7 +29,13 @@ from py_noita.entities.bosses import (
 from py_noita.simulation.grid import SimulationGrid
 from py_noita.simulation.materials import (
     MAT_AIR,
+    MAT_ASH,
     MAT_BONE,
+    MAT_CHITIN_SAND,
+    MAT_FIBRIN_POWDER,
+    MAT_NECRO_ASH,
+    MAT_SPORES,
+    MAT_SULFUR_SPORES,
     MAT_TISSUE,
     MAT_WALL_BONE,
 )
@@ -69,10 +75,20 @@ def generate_world_level(
     physics_world: Optional[Any] = None,
     seed: Optional[int] = None,
     orbs_collected: int = 0,
+    progress_callback: Optional[Any] = None,
 ) -> Tuple[Tuple[float, float], WorldPortal, List[Tuple[float, float, str]], List[LootCyst], List[GeneOrb], List[DnaTablet], Optional[Any]]:
     """Generate a procedural subterranean organ level for the given biome.
     Returns: (player_spawn_pos, exit_portal, enemy_spawn_points, loot_cysts, gene_orbs, dna_tablets, secret_boss).
     """
+    def report_progress(val: float, msg: str) -> None:
+        if progress_callback is not None:
+            try:
+                progress_callback(val, msg)
+            except Exception:
+                pass
+
+    report_progress(0.05, "Biom-Gewebe initialisieren...")
+
     if seed is not None:
         random.seed(seed)
         np.random.seed(abs(seed) % (2**31))
@@ -89,59 +105,105 @@ def generate_world_level(
     spawn_x = float(w // 2)
     spawn_y = 60.0
     grid.fill_rect(w // 2 - 60, 30, 120, 80, MAT_AIR)
-    # Starting floor
+    # Starting floor with descent chutes
     grid.fill_rect(w // 2 - 80, 110, 160, 10, biome.secondary_solid)
+    grid.carve_circle(w // 2 - 50, 115, 12, MAT_AIR)
+    grid.carve_circle(w // 2 + 50, 115, 12, MAT_AIR)
 
-    # 3. Procedural Cave Carving: Multi-agent random burrowers & cellular automata
+    report_progress(0.15, "Horizontale Strata & Kavernen wachsen...")
+
+    # 3. Horizontal Strata Cave Generation
     style = getattr(biome, "generation_style", "DEFAULT")
-    if style == "LAGOON":
-        num_burrowers = max(5, w // 60)
-        burrow_steps = max(350, int(w * h / 360))
-        dx_choices = [-4, -3, -2, -1, 0, 1, 2, 3, 4]
-        dy_choices = [-1, 0, 1, 2]
-    elif style == "LUNG":
-        num_burrowers = max(4, w // 70)
-        burrow_steps = max(300, int(w * h / 400))
-        dx_choices = [-2, -1, 0, 1, 2]
-        dy_choices = [-2, 0, 1, 3, 5]
-    elif style == "LABYRINTH":
-        num_burrowers = max(6, w // 50)
-        burrow_steps = max(400, int(w * h / 350))
-        dx_choices = [-3, -2, -1, 1, 2, 3]
-        dy_choices = [-2, -1, 1, 2]
-    else:
-        num_burrowers = max(4, w // 80)
-        burrow_steps = max(300, int(w * h / 400))
-        dx_choices = [-3, -2, -1, 0, 1, 2, 3]
-        dy_choices = [-1, 0, 1, 2, 3, 4]
+    y_start = 125
+    y_end = max(y_start + 80, h - 90)
+    playable_h = y_end - y_start
 
-    for b in range(num_burrowers):
-        bx = random.randint(w // 4, 3 * w // 4)
-        by = random.randint(max(40, int(h * 0.1)), max(50, int(h * 0.2)))
-        radius = random.randint(6, 14) if style == "LABYRINTH" else random.randint(8, 20)
+    num_strata = max(3, min(5, playable_h // 120))
+    stratum_h = playable_h // num_strata
+    strata_bounds = []
+    for s in range(num_strata):
+        s_top = y_start + s * stratum_h
+        s_bot = s_top + stratum_h if s < num_strata - 1 else y_end
+        strata_bounds.append((s_top, s_bot))
 
-        for _ in range(burrow_steps):
-            grid.carve_circle(int(bx), int(by), radius, MAT_AIR)
-            bx += random.choice(dx_choices)
-            by += random.choice(dy_choices)
+    # Carve horizontal caverns within each stratum
+    for s, (s_top, s_bot) in enumerate(strata_bounds):
+        s_mid = (s_top + s_bot) // 2
+        num_burrowers = max(3, w // 70)
+        if style == "LAGOON":
+            num_burrowers += 2
+        elif style == "LABYRINTH":
+            num_burrowers += 3
 
-            # Keep inside world bounds
-            bx = max(20, min(w - 20, bx))
-            by = max(40, min(h - 80, by))
+        steps_per_burrower = max(200, int(w * (s_bot - s_top) / 320))
+        dx_choices = [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]
+        dy_choices = [-1, 0, 0, 0, 1]
 
-            if random.random() < 0.05:
-                radius = random.randint(6, 12) if style == "LABYRINTH" else random.randint(8, 22)
+        for _ in range(num_burrowers):
+            bx = random.randint(30, max(35, w - 30))
+            by = random.randint(s_top + 10, max(s_top + 12, s_bot - 14))
+            radius = random.randint(7, 13) if style == "LABYRINTH" else random.randint(9, 20)
+
+            for _ in range(steps_per_burrower):
+                grid.carve_circle(int(bx), int(by), radius, MAT_AIR)
+                bx += random.choice(dx_choices)
+                by += random.choice(dy_choices)
+
+                # Keep within horizontal bounds and stratum limits
+                bx = max(20, min(w - 20, bx))
+                by = max(s_top + 8, min(s_bot - 10, by))
+
+                if random.random() < 0.05:
+                    radius = random.randint(6, 12) if style == "LABYRINTH" else random.randint(8, 22)
+
+        # Carve 1-3 expansive open chamber rooms in each stratum
+        num_chambers = random.randint(1, 3)
+        for _ in range(num_chambers):
+            cx = random.randint(40, max(45, w - 40))
+            cy = random.randint(s_top + 15, max(s_top + 16, s_bot - 15))
+            cr = random.randint(18, 32)
+            grid.carve_circle(cx, cy, cr, MAT_AIR)
+            # Add natural rock shelf in chamber
+            shelf_w = random.randint(20, 45)
+            grid.fill_rect(cx - shelf_w // 2, cy + cr // 3, shelf_w, 6, biome.secondary_solid)
+
+        # Establish dense barrier shelf between stratum s and s+1 (except bottom stratum)
+        if s < num_strata - 1:
+            shelf_y = s_bot
+            grid.fill_rect(20, shelf_y - 6, w - 40, 12, biome.secondary_solid)
+
+            # Punch 2-4 deliberate vertical shafts / drops connecting stratum s to s+1
+            num_shafts = random.randint(2, 4)
+            seg_w = (w - 80) // num_shafts
+            for shaft_idx in range(num_shafts):
+                min_sx = 40 + shaft_idx * seg_w
+                max_sx = min_sx + seg_w - 10
+                shaft_x = random.randint(min_sx, max(min_sx + 5, max_sx))
+                shaft_r = random.randint(9, 16)
+                shaft_curr_x = shaft_x
+                next_reach = strata_bounds[s + 1][1]
+                for shaft_y in range(s_mid + 5, s_bot + max(15, (next_reach - s_bot) // 3)):
+                    grid.carve_circle(int(shaft_curr_x), shaft_y, shaft_r, MAT_AIR)
+                    if random.random() < 0.35:
+                        shaft_curr_x += random.choice([-2, -1, 0, 1, 2])
+                        shaft_curr_x = max(25, min(w - 25, shaft_curr_x))
+
+    # Connect lowest stratum to bottom transition hall
+    lowest_s_mid = (strata_bounds[-1][0] + strata_bounds[-1][1]) // 2
+    for drop_x in (w // 2 - 60, w // 2 + 60, w // 2):
+        for dy in range(lowest_s_mid, h - 80):
+            grid.carve_circle(drop_x, dy, 12, MAT_AIR)
 
     # 3b. Biome-specific architectural features
     if style == "CORE":
-        # Grand central host brain chamber
-        grid.carve_circle(w // 2, h // 2, 45, MAT_AIR)
-        grid.fill_rect(w // 2 - 35, h // 2 + 35, 70, 8, biome.secondary_solid)
+        grid.carve_circle(w // 2, h // 2, 48, MAT_AIR)
+        grid.fill_rect(w // 2 - 40, h // 2 + 35, 80, 8, biome.secondary_solid)
     elif style == "SPINE":
-        # Central spinal column strut
         grid.fill_rect(w // 2 - 8, int(h * 0.18), 16, int(h * 0.65), biome.secondary_solid)
         for sy in range(int(h * 0.22), int(h * 0.8), 35):
             grid.fill_rect(30, sy, w - 60, 4, biome.primary_solid)
+
+    report_progress(0.40, "Knochenwände & Stützstreben verhärten...")
 
     # 4. Bone strut reinforcements throughout caverns
     num_struts = max(5, int(h / 50))
@@ -154,26 +216,26 @@ def generate_world_level(
         rh = random.randint(5, 12)
         grid.fill_rect(rx, ry, rw, rh, biome.secondary_solid)
 
+    report_progress(0.65, "Fluide & bio-organische Granulate lagern sich ab...")
+
     # 5. Natural Liquid Basins & Pools
     num_pools = max(3, int(h / 80))
     if style == "LAGOON":
-        num_pools += 3
+        num_pools += 4
     pool_min_y = int(h * 0.2)
     pool_max_y = max(pool_min_y + 10, h - 80)
     for _ in range(num_pools):
         px = random.randint(30, max(35, w - 40))
         py = random.randint(pool_min_y, pool_max_y)
-        # Search down for an air-to-solid boundary
         for search_y in range(py, min(h - 60, py + 60)):
             if grid.is_solid(px, search_y):
-                # Carve basin and fill with liquid
                 pool_r = random.randint(12, 24) if style == "LAGOON" else random.randint(8, 18)
                 grid.carve_circle(px, search_y - 2, pool_r, MAT_AIR)
                 basin_w = 30 if style == "LAGOON" else 20
                 grid.fill_rect(px - basin_w // 2, search_y - 6, basin_w, 10, biome.liquid_pool_mat)
                 break
 
-    # 6. Gas and Powder pockets
+    # 6. Gas and Powder pockets (Placed on solid floors / basins)
     if biome.gas_mat != MAT_AIR:
         gas_count = max(4, int(h / 80)) if style in ("LAGOON", "LUNG") else max(2, int(h / 120))
         for _ in range(gas_count):
@@ -181,12 +243,41 @@ def generate_world_level(
             gy = random.randint(int(h * 0.25), max(int(h * 0.26), h - 90))
             grid.fill_rect(gx, gy, random.randint(12, 28), random.randint(6, 14), biome.gas_mat)
 
-    if biome.powder_mat != MAT_AIR:
-        powder_count = max(5, int(h / 60)) if style in ("LUNG", "LABYRINTH") else max(3, int(h / 90))
+    # Bio-powder materials selection per biome
+    powder_palette = [biome.powder_mat] if biome.powder_mat != MAT_AIR else []
+    if biome.biome_id in ("EPIDERMIS", "CHITIN_WARREN"):
+        powder_palette.extend([MAT_CHITIN_SAND, MAT_NECRO_ASH])
+    elif biome.biome_id in ("VASCULAR_SYSTEM", "GASTRIC_CAVERNS"):
+        powder_palette.extend([MAT_FIBRIN_POWDER, MAT_ASH])
+    elif biome.biome_id in ("BILE_LAGOON", "PULMONARY_LABYRINTH"):
+        powder_palette.extend([MAT_SULFUR_SPORES, MAT_SPORES])
+    else:
+        powder_palette.extend([MAT_CHITIN_SAND, MAT_FIBRIN_POWDER, MAT_NECRO_ASH])
+    powder_palette = [p for p in powder_palette if p != MAT_AIR]
+
+    if powder_palette:
+        powder_count = max(6, int(h / 45)) if style in ("LUNG", "LABYRINTH") else max(4, int(h / 70))
         for _ in range(powder_count):
             sx = random.randint(30, max(35, w - 50))
-            sy = random.randint(int(h * 0.2), max(int(h * 0.21), h - 90))
-            grid.spray_circle(sx, sy, random.randint(6, 14), biome.powder_mat, density=0.8)
+            sy = random.randint(int(h * 0.18), max(int(h * 0.19), h - 90))
+            chosen_powder = random.choice(powder_palette)
+            # Find solid ground below sx, sy to settle on
+            for ground_y in range(sy, min(h - 60, sy + 70)):
+                if grid.is_solid(sx, ground_y):
+                    heap_w = random.randint(7, 15)
+                    heap_h = random.randint(3, 7)
+                    for hdx in range(-heap_w, heap_w + 1):
+                        px = sx + hdx
+                        if 2 <= px < w - 2:
+                            col_h = int(heap_h * (1.0 - (hdx / (heap_w + 1.0)) ** 2))
+                            for hdh in range(1, col_h + 1):
+                                py = ground_y - hdh
+                                if 2 <= py < h - 2 and grid.get_pixel(px, py) == MAT_AIR:
+                                    grid.set_pixel(px, py, chosen_powder)
+                    break
+
+    # Pre-simulate settling so powders & liquids rest naturally
+    grid.settle_world(steps=15)
 
     # 7. Bottom Transition Hallway & Exit Portal
     portal_y = h - 60
@@ -198,6 +289,8 @@ def generate_world_level(
     grid.fill_rect(portal_x - 60, portal_y + 20, 120, 14, MAT_WALL_BONE)
 
     exit_portal = WorldPortal(float(portal_x), float(portal_y))
+
+    report_progress(0.85, "Wächter und Biomasse-Zysten erwachen...")
 
     # 8. Enemy spawn locations
     enemy_spawns: List[Tuple[float, float, str]] = []
@@ -258,6 +351,8 @@ def generate_world_level(
         grid.ascent_portal = SurfaceAscentPortal(float(w // 2), 24.0)
     else:
         grid.ascent_portal = None
+
+    report_progress(1.0, "Subterranes Organ bereit!")
 
     return (spawn_x, spawn_y), exit_portal, enemy_spawns, loot_cysts, gene_orbs, dna_tablets, secret_boss
 

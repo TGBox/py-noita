@@ -23,11 +23,17 @@ from py_noita.simulation.grid import SimulationGrid
 from py_noita.simulation.materials import (
     MAT_ACID,
     MAT_AIR,
+    MAT_BILE,
+    MAT_BIOGAS,
     MAT_BLOOD,
     MAT_FIRE,
     MAT_GOLD,
     MAT_LYMPH,
     MAT_MUTAGEN,
+    MAT_PUS,
+    MAT_SPORES,
+    MAT_SULFUR_SPORES,
+    MAT_TOXIC_VAPOR,
     MAT_WATER,
     PROP_STATE,
     STATE_LIQUID,
@@ -93,6 +99,11 @@ class Player:
         self.fire_timer: int = 0
         self.acid_burn_timer: int = 0
         self.blood_soaked_timer: int = 0
+        self.bile_slippery_timer: int = 0
+        self.mutagen_frenzy_timer: int = 0
+        self.spore_boost_timer: int = 0
+        self.pus_sticky_timer: int = 0
+        self.gas_exposure_timer: int = 0
 
         # Organ-Glands (Flasks): 4 liquid sacs
         self.glands: List[LiquidGland] = [LiquidGland() for _ in range(4)]
@@ -122,6 +133,13 @@ class Player:
             ProceduralTentacle(rel_root_x=4.0, rel_root_y=-1.0, preferred_angle=-math.pi * 0.05, segment_lengths=[5.0, 4.0, 4.0, 3.0]),
         ]
 
+        # Extra sprouting mutation mini-tentacles (active during Mutagen / Spore frenzy)
+        self.extra_tentacles: List[ProceduralTentacle] = [
+            ProceduralTentacle(rel_root_x=-2.0, rel_root_y=-2.0, preferred_angle=math.pi * 1.3, segment_lengths=[3.0, 3.0, 2.0]),
+            ProceduralTentacle(rel_root_x=2.0, rel_root_y=-2.0, preferred_angle=-math.pi * 0.3, segment_lengths=[3.0, 3.0, 2.0]),
+            ProceduralTentacle(rel_root_x=0.0, rel_root_y=-3.0, preferred_angle=-math.pi * 0.5, segment_lengths=[3.5, 3.0, 2.5]),
+        ]
+
         # Meta attributes
         self.biomass_currency: int = 0
         self.orbs_collected: int = 0
@@ -141,14 +159,24 @@ class Player:
         if not self.alive:
             return
 
-        # Horizontal movement
-        target_vx = move_x * PLAYER_MOVE_SPEED
-        self.vx += (target_vx - self.vx) * 0.25
+        # Speed scaling from Mutagen (+35%) and Pus (-35%)
+        speed_mult = 1.0
+        if self.mutagen_frenzy_timer > 0:
+            speed_mult *= 1.35
+        if self.pus_sticky_timer > 0:
+            speed_mult *= 0.65
 
-        # Hover / Levitation
+        # Horizontal movement (Bile drastically reduces friction damping)
+        target_vx = move_x * PLAYER_MOVE_SPEED * speed_mult
+        friction_lerp = 0.06 if self.bile_slippery_timer > 0 else 0.25
+        self.vx += (target_vx - self.vx) * friction_lerp
+
+        # Hover / Levitation (Spore booster gives stronger upward impulse)
+        hover_impulse = PLAYER_HOVER_IMPULSE * (1.4 if self.spore_boost_timer > 0 else 1.0)
+        max_upward = -4.5 if self.spore_boost_timer > 0 else -3.2
         if hover and self.levitation > 0.0:
-            self.vy -= PLAYER_HOVER_IMPULSE
-            self.vy = max(self.vy, -3.2)  # Terminal upward velocity
+            self.vy -= hover_impulse
+            self.vy = max(self.vy, max_upward)  # Terminal upward velocity
             self.levitation = max(0.0, self.levitation - PLAYER_LEVITATION_DRAIN)
             self.is_levitating = True
         else:
@@ -202,6 +230,11 @@ class Player:
         for tentacle in self.tentacles:
             tentacle.update(self.center_x, self.center_y, grid, 0.016, self.vx, self.vy, facing)
 
+        # Update extra sprouting mutation tentacles if active
+        if self.mutagen_frenzy_timer > 0 or self.spore_boost_timer > 0:
+            for extra in self.extra_tentacles:
+                extra.update(self.center_x, self.center_y, grid, 0.025, self.vx, self.vy, facing)
+
         # 4. Environment & Liquid interactions
         self._check_environmental_hazards(grid)
 
@@ -219,7 +252,7 @@ class Player:
         return False
 
     def _check_environmental_hazards(self, grid: SimulationGrid) -> None:
-        """Check contact with Acid, Blood, Fire, Water."""
+        """Check contact with Acid, Blood, Fire, Bile, Mutagen, Spores, Pus, Gas, and Water."""
         cx = int(self.center_x)
         cy = int(self.center_y)
 
@@ -240,11 +273,31 @@ class Player:
                 elif mat == MAT_FIRE:
                     self.on_fire = True
                     self.fire_timer = 120
-                # Water or Lymph cleanses fire & acid
+                # Bile: slippery coating
+                elif mat == MAT_BILE:
+                    self.bile_slippery_timer = max(self.bile_slippery_timer, 150)
+                # Mutagen: genetic frenzy
+                elif mat == MAT_MUTAGEN:
+                    self.mutagen_frenzy_timer = max(self.mutagen_frenzy_timer, 180)
+                # Spores: flagella excitation booster
+                elif mat in (MAT_SPORES, MAT_SULFUR_SPORES):
+                    if self.spore_boost_timer == 0:
+                        self.vy -= 0.6
+                    self.spore_boost_timer = max(self.spore_boost_timer, 140)
+                # Pus: viscous stickiness
+                elif mat == MAT_PUS:
+                    self.pus_sticky_timer = max(self.pus_sticky_timer, 150)
+                # Toxic Vapor or Biogas: coughing exposure
+                elif mat in (MAT_TOXIC_VAPOR, MAT_BIOGAS):
+                    self.gas_exposure_timer = min(180, self.gas_exposure_timer + 3)
+                # Water or Lymph cleanses fire, acid, and coatings
                 elif mat in (MAT_WATER, MAT_LYMPH):
                     self.on_fire = False
                     self.fire_timer = 0
                     self.acid_burn_timer = 0
+                    self.bile_slippery_timer = 0
+                    self.pus_sticky_timer = 0
+                    self.gas_exposure_timer = 0
                 # Biomass-Gold collection
                 elif mat == MAT_GOLD:
                     self.biomass_currency += 1
@@ -261,8 +314,33 @@ class Player:
             self.acid_burn_timer -= 1
             self.take_damage(0.15, "ACID")
 
+        if self.bile_slippery_timer > 0:
+            self.bile_slippery_timer -= 1
+
+        if self.mutagen_frenzy_timer > 0:
+            self.mutagen_frenzy_timer -= 1
+
+        if self.spore_boost_timer > 0:
+            self.spore_boost_timer -= 1
+
+        if self.pus_sticky_timer > 0:
+            self.pus_sticky_timer -= 1
+
+        if self.gas_exposure_timer > 0:
+            if self.gas_exposure_timer >= 40 and (self.gas_exposure_timer % 20 == 0):
+                self.take_damage(0.25, "GAS")
+                self.vx += float(np.random.uniform(-0.4, 0.4))
+            self.gas_exposure_timer -= 1
+
     def take_damage(self, amount: float, source: str = "DAMAGE") -> None:
         """Apply damage and check death."""
+        # Pus grants +20% physical blunt resistance
+        if self.pus_sticky_timer > 0 and source in ("DAMAGE", "IMPACT", "ENEMY"):
+            amount *= 0.8
+        # Bile coating increases fire vulnerability
+        if self.bile_slippery_timer > 0 and source == "FIRE":
+            amount *= 1.5
+
         self.hp -= amount
         if self.hp <= 0.0:
             self.hp = 0.0
@@ -293,12 +371,20 @@ class Player:
         return None
 
     def draw(self, surface: pygame.Surface, cam_x: int, cam_y: int) -> None:
-        """Draw the living symbiote with procedural gripping tentacles and animated flagella."""
+        """Draw the living symbiote with procedural gripping tentacles, flagella, and status visual mutations."""
         if not self.alive:
             return
 
         sx = int(self.x - cam_x)
         sy = int(self.y - cam_y)
+
+        # Mutagen pulsing aura
+        if self.mutagen_frenzy_timer > 0:
+            glow_pulse = (math.sin(self.anim_time * 6.0) + 1.0) * 0.5
+            gr = int(self.width * 1.5 + glow_pulse * 4)
+            glow_s = pygame.Surface((gr * 2, gr * 2), pygame.SRCALPHA)
+            pygame.draw.circle(glow_s, (210, 40, 230, int(50 + glow_pulse * 40)), (gr, gr), gr)
+            surface.blit(glow_s, (sx + self.width // 2 - gr, sy + self.height // 2 - gr))
 
         # 1. Draw procedural gripping / crawling tentacles (FABRIK IK)
         tentacle_col = (140, 22, 38) if not self.on_fire else (255, 120, 20)
@@ -306,12 +392,28 @@ class Player:
         for tentacle in self.tentacles:
             tentacle.draw(surface, cam_x, cam_y, tentacle_col, sucker_col)
 
+        # 1b. Extra sprouting mutation mini-tentacles (Mutagen or Spore frenzy)
+        if self.mutagen_frenzy_timer > 0 or self.spore_boost_timer > 0:
+            m_tentacle_col = (220, 40, 240) if self.mutagen_frenzy_timer > 0 else (210, 240, 50)
+            m_sucker_col = (255, 120, 255) if self.mutagen_frenzy_timer > 0 else (240, 255, 140)
+            for extra in self.extra_tentacles:
+                extra.draw(surface, cam_x, cam_y, m_tentacle_col, m_sucker_col)
+
         # 2. Draw waving flagella (cilia hairs behind the body)
+        flagella_col = (130, 20, 40)
+        if self.on_fire:
+            flagella_col = (255, 120, 20)
+        elif self.spore_boost_timer > 0:
+            flagella_col = (215, 240, 60)
+        elif self.pus_sticky_timer > 0:
+            flagella_col = (190, 185, 95)
+
         for i in range(self.flagella_count):
             fraction = (i + 1) / (self.flagella_count + 1)
             attach_y = sy + int(self.height * fraction)
-            # Flagella wave oscillation
-            wave = math.sin(self.anim_time * 2.0 + i * 1.2) * 3.5
+            # Flagella wave oscillation (clamped if pus makes it sticky)
+            wave_scale = 1.0 if self.pus_sticky_timer > 0 else 3.5
+            wave = math.sin(self.anim_time * 2.0 + i * 1.2) * wave_scale
             thrust = -4.0 if self.is_levitating else -1.5
 
             # Root and tip
@@ -319,25 +421,31 @@ class Player:
             tip_x = root_x + (thrust if self.vx >= -0.1 else -thrust)
             tip_y = attach_y + int(wave) + (4 if self.is_levitating else 1)
 
-            flagella_col = (130, 20, 40) if not self.on_fire else (255, 120, 20)
-            pygame.draw.line(surface, flagella_col, (root_x, attach_y), (tip_x, tip_y), 1)
+            line_w = 2 if self.pus_sticky_timer > 0 else 1
+            pygame.draw.line(surface, flagella_col, (root_x, attach_y), (tip_x, tip_y), line_w)
 
-        # 2. Draw organic symbiote body (capsule / soft ellipsoid)
+        # 3. Draw organic symbiote body (capsule / soft ellipsoid)
         body_col = (175, 30, 50)
         if self.acid_burn_timer > 0:
             body_col = (120, 190, 40)  # Greenish acid sizzle tint
         elif self.on_fire:
             body_col = (255, 140, 20)
+        elif self.mutagen_frenzy_timer > 0:
+            body_col = (215, 35, 230)  # Mutagen hyper-magenta
+        elif self.pus_sticky_timer > 0:
+            body_col = (210, 205, 110)  # Pus sticky yellow
+        elif self.bile_slippery_timer > 0:
+            body_col = (185, 180, 40)   # Bile oily greenish-amber
 
         rect = pygame.Rect(sx, sy, self.width, self.height)
         pygame.draw.ellipse(surface, body_col, rect)
 
-        # 3. Inner bioluminescent cell nucleus / eye
+        # 4. Inner bioluminescent cell nucleus / eye
         core_col = (240, 210, 160)
         core_rect = pygame.Rect(sx + 2, sy + 3, self.width - 4, 4)
         pygame.draw.ellipse(surface, core_col, core_rect)
 
-        # 4. Aim indicator needle / cannula tip
+        # 5. Aim indicator needle / cannula tip
         aim_dist = 9.0
         tip_x = int(sx + self.width / 2.0 + math.cos(self.aim_angle) * aim_dist)
         tip_y = int(sy + self.height / 2.0 + math.sin(self.aim_angle) * aim_dist)

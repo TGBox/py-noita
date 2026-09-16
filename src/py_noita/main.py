@@ -311,6 +311,70 @@ class Game:
 
         self.state = STATE_PLAYING
 
+    def _render_generation_progress(self, percent: float, message: str) -> None:
+        """Render animated bio-loading screen with pulsing organ icon and progress bar."""
+        if not pygame.display.get_init() or self.screen is None:
+            return
+
+        # Pump OS events to prevent OS "Application not responding" freeze
+        pygame.event.pump()
+
+        sw, sh = self.screen.get_size()
+        self.screen.fill((14, 10, 18))
+
+        cx = sw // 2
+        cy = sh // 2 - 40
+
+        # Pulsing heartbeat radius
+        t = pygame.time.get_ticks() / 1000.0
+        pulse = (math.sin(t * 8.0) + 1.0) * 0.5
+        organ_r = int(32 + pulse * 8)
+
+        # Pulsing organic aura glow rings
+        for r_ext, alpha in ((28, 20), (18, 40), (8, 70)):
+            glow_surf = pygame.Surface(((organ_r + r_ext) * 2, (organ_r + r_ext) * 2), pygame.SRCALPHA)
+            pygame.draw.circle(
+                glow_surf,
+                (200, 25, 70, alpha),
+                (organ_r + r_ext, organ_r + r_ext),
+                organ_r + r_ext,
+            )
+            self.screen.blit(glow_surf, (cx - (organ_r + r_ext), cy - (organ_r + r_ext)))
+
+        # Central bio-core
+        pygame.draw.circle(self.screen, (220 + int(pulse * 35), 35, 55), (cx, cy), organ_r)
+        pygame.draw.circle(self.screen, (255, 160, 180), (cx - 5, cy - 5), max(5, int(organ_r * 0.35)))
+
+        # Biome title
+        biome = self.current_biome
+        b_name = getattr(biome, "name", f"Biom {self.current_biome_index + 1}")
+        b_surf = self.title_font.render(b_name.upper(), True, (245, 230, 225))
+        self.screen.blit(b_surf, (cx - b_surf.get_width() // 2, cy + 65))
+
+        # Status text
+        msg_surf = self.font.render(message, True, (200, 185, 215))
+        self.screen.blit(msg_surf, (cx - msg_surf.get_width() // 2, cy + 105))
+
+        # Progress bar
+        bar_w = min(420, int(sw * 0.6))
+        bar_h = 14
+        bar_x = cx - bar_w // 2
+        bar_y = cy + 135
+
+        pygame.draw.rect(self.screen, (65, 45, 75), (bar_x - 2, bar_y - 2, bar_w + 4, bar_h + 4), 2, border_radius=4)
+        pygame.draw.rect(self.screen, (24, 18, 30), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+
+        fill_w = max(0, min(bar_w, int(bar_w * percent)))
+        if fill_w > 0:
+            fill_col = (195, 30, 225) if percent < 0.7 else (50, 235, 115)
+            pygame.draw.rect(self.screen, fill_col, (bar_x, bar_y, fill_w, bar_h), border_radius=3)
+            pygame.draw.line(self.screen, (255, 255, 255), (bar_x, bar_y + 2), (bar_x + fill_w, bar_y + 2))
+
+        pct_surf = self.font.render(f"{int(percent * 100)}%", True, (220, 220, 230))
+        self.screen.blit(pct_surf, (cx - pct_surf.get_width() // 2, bar_y + 22))
+
+        pygame.display.flip()
+
     def load_biome_level(self, biome_index: int) -> None:
         """Generate and enter a subterranean biome level."""
         self.current_biome_index = biome_index
@@ -320,7 +384,12 @@ class Game:
         level_seed = self.world_seed + biome_index * 1337
         orbs_cnt = self.player.orbs_collected if self.player else 0
         spawn_pos, portal, enemy_spawns, loot, orbs, tablets, boss = generate_world_level(
-            self.grid, biome, physics_world=self.physics_world, seed=level_seed, orbs_collected=orbs_cnt
+            self.grid,
+            biome,
+            physics_world=self.physics_world,
+            seed=level_seed,
+            orbs_collected=orbs_cnt,
+            progress_callback=self._render_generation_progress,
         )
         self.exit_portal = portal
         self.loot_cysts = loot
@@ -648,6 +717,9 @@ class Game:
             self.state = STATE_SETTINGS
             return
 
+        # Update HUD animations
+        self.hud.update(dt)
+
         # F5 Quicksave shortcut
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
@@ -655,11 +727,61 @@ class Game:
                     self.quicksave_notice_timer = 2.5
                     self.audio.play("pickup", volume=0.8)
 
-        # Weapon / Gland selection
+        # Weapon / Gland selection & Mousewheel cycling (5.3, 5.4)
+        slot_changed = False
+        selected_type = None
+
         if input_state.select_cannula is not None and input_state.select_cannula < len(self.player.cannulas):
-            self.player.active_cannula_index = input_state.select_cannula
-        if input_state.select_gland is not None:
-            self.player.active_gland_index = input_state.select_gland
+            if self.player.active_cannula_index != input_state.select_cannula or selected_type is None:
+                self.player.active_cannula_index = input_state.select_cannula
+                slot_changed = True
+                selected_type = "CANNULA"
+
+        if input_state.select_gland is not None and input_state.select_gland < len(self.player.glands):
+            if self.player.active_gland_index != input_state.select_gland or selected_type is None:
+                self.player.active_gland_index = input_state.select_gland
+                slot_changed = True
+                selected_type = "GLAND"
+
+        # Hotbar Mousewheel cycling through occupied cannulas and filled glands
+        if input_state.scroll_delta != 0:
+            available_slots = []
+            for idx in range(len(self.player.cannulas)):
+                available_slots.append(("CANNULA", idx))
+            for idx, gland in enumerate(self.player.glands):
+                if gland.current_amount > 0:
+                    available_slots.append(("GLAND", idx))
+
+            if available_slots:
+                # Find current index
+                curr_target = ("CANNULA", self.player.active_cannula_index)
+                curr_idx = 0
+                if curr_target in available_slots:
+                    curr_idx = available_slots.index(curr_target)
+                elif ("GLAND", self.player.active_gland_index) in available_slots:
+                    curr_idx = available_slots.index(("GLAND", self.player.active_gland_index))
+
+                next_idx = (curr_idx - input_state.scroll_delta) % len(available_slots)
+                slot_type, slot_num = available_slots[next_idx]
+                if slot_type == "CANNULA":
+                    self.player.active_cannula_index = slot_num
+                    selected_type = "CANNULA"
+                else:
+                    self.player.active_gland_index = slot_num
+                    selected_type = "GLAND"
+                slot_changed = True
+
+        # Trigger dynamic splash notification (5.4)
+        if slot_changed:
+            from py_noita.simulation.materials import get_material_name, MAT_AIR
+            if selected_type == "CANNULA" and self.player.cannulas:
+                c = self.player.cannulas[self.player.active_cannula_index]
+                filled = sum(1 for g in c.slots if g is not None)
+                self.hud.show_splash(f"Kanüle {self.player.active_cannula_index + 1}: {c.name} [{filled}/{c.capacity}]")
+            elif selected_type == "GLAND":
+                gland = self.player.glands[self.player.active_gland_index]
+                m_name = get_material_name(gland.material_id) if gland.material_id != MAT_AIR else "Leer"
+                self.hud.show_splash(f"Drüse {self.player.active_gland_index + 1}: {m_name} [{gland.current_amount}/{gland.capacity}]")
 
         # Player Movement
         self.player.aim_angle = input_state.aim_angle
@@ -668,7 +790,8 @@ class Game:
         # 2. Player Weapon Firing
         if self.player.cannulas and 0 <= self.player.active_cannula_index < len(self.player.cannulas):
             active_c = self.player.cannulas[self.player.active_cannula_index]
-            active_c.update(dt)
+            frenzy_mult = 1.35 if getattr(self.player, "mutagen_frenzy_timer", 0) > 0 else 1.0
+            active_c.update(dt * frenzy_mult)
 
             if input_state.fire_primary:
                 new_projs = evaluate_cannula_fire(
@@ -1004,7 +1127,7 @@ class Game:
         self.player.update_physics(self.grid)
 
         # Incubation interactions (Healing pool, Perks, Shop)
-        new_perk = self.incubation_node.update(self.player)
+        new_perk = self.incubation_node.update(self.player, interact_pressed=input_state.interact)
         if new_perk:
             self.perk_manager.add_perk(new_perk, self.player)
             self.audio.play("pickup", volume=1.0)
@@ -1151,7 +1274,8 @@ class Game:
 
         # 4b. Draw in-world text labels on render_surf so they are never warped
         if self.state == STATE_INCUBATION and self.incubation_node:
-            self.incubation_node.draw(render_surf, cam_x, cam_y, self.font)
+            mouse_world = (self.last_input.aim_world_x, self.last_input.aim_world_y) if self.last_input else None
+            self.incubation_node.draw(render_surf, cam_x, cam_y, self.font, player=self.player, mouse_world=mouse_world)
 
         for tab in self.dna_tablets:
             tab.draw(render_surf, cam_x, cam_y, self.font)

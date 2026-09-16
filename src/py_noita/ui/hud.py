@@ -10,6 +10,9 @@ class HUD:
 
     def __init__(self, scale: float = 1.0):
         self.scale: float = scale
+        self.splash_text: Optional[str] = None
+        self.splash_timer: float = 0.0
+        self.splash_duration: float = 1.8
         self._init_fonts()
 
     def _init_fonts(self) -> None:
@@ -23,6 +26,16 @@ class HUD:
         """Update HUD scaling factor (1.0x for 1080p up to 2.0x for 4K)."""
         self.scale = max(0.75, min(2.5, scale))
         self._init_fonts()
+
+    def show_splash(self, text: str) -> None:
+        """Trigger dynamic splash notification text (e.g. on slot switch)."""
+        self.splash_text = text
+        self.splash_timer = self.splash_duration
+
+    def update(self, dt: float) -> None:
+        """Update animated HUD timers."""
+        if self.splash_timer > 0.0:
+            self.splash_timer = max(0.0, self.splash_timer - dt)
 
     def draw(
         self,
@@ -75,6 +88,37 @@ class HUD:
                 label=None,
             )
 
+        # 1b. Active Bio-Status Effects Bar (Top Left, under vital bars)
+        status_badges = []
+        if getattr(player, "on_fire", False):
+            status_badges.append(("F", (255, 120, 20), player.fire_timer, 120))
+        if getattr(player, "acid_burn_timer", 0) > 0:
+            status_badges.append(("A", (90, 255, 50), player.acid_burn_timer, 60))
+        if getattr(player, "bile_slippery_timer", 0) > 0:
+            status_badges.append(("G", (190, 210, 30), player.bile_slippery_timer, 150))
+        if getattr(player, "mutagen_frenzy_timer", 0) > 0:
+            status_badges.append(("M", (220, 40, 240), player.mutagen_frenzy_timer, 180))
+        if getattr(player, "spore_boost_timer", 0) > 0:
+            status_badges.append(("S", (200, 235, 40), player.spore_boost_timer, 140))
+        if getattr(player, "pus_sticky_timer", 0) > 0:
+            status_badges.append(("E", (220, 210, 110), player.pus_sticky_timer, 150))
+        if getattr(player, "gas_exposure_timer", 0) > 0:
+            status_badges.append(("X", (120, 230, 100), player.gas_exposure_timer, 180))
+
+        badge_x = 10
+        badge_y = 42
+        badge_size = 14
+        for initial, color, timer, max_time in status_badges:
+            pygame.draw.rect(surface, (20, 15, 25), (badge_x, badge_y, badge_size, badge_size), border_radius=2)
+            pygame.draw.rect(surface, color, (badge_x, badge_y, badge_size, badge_size), 1, border_radius=2)
+            init_surf = self.tiny_font.render(initial, True, color)
+            surface.blit(init_surf, (badge_x + (badge_size - init_surf.get_width()) // 2, badge_y))
+            dur_frac = max(0.0, min(1.0, timer / max(1.0, float(max_time))))
+            bar_w = int(badge_size * dur_frac)
+            if bar_w > 0:
+                pygame.draw.rect(surface, color, (badge_x, badge_y + badge_size + 1, bar_w, 2))
+            badge_x += badge_size + 4
+
         # 2. Currency & Biome info (Top Right)
         view_w = surface.get_width()
         biomass_text = self.large_font.render(f"◆ {player.biomass_currency} Biomasse", True, (255, 220, 110))
@@ -99,6 +143,28 @@ class HUD:
 
         # 4. Organ-Gland Sacs (Keys 5-8, Bottom Right)
         self._draw_gland_slots(surface, player, x=view_w - 95, y=surface.get_height() - 28)
+
+        # 4b. Dynamic Slot Change Splash Text (Centered above hotbar)
+        if self.splash_text and self.splash_timer > 0.0:
+            elapsed = self.splash_duration - self.splash_timer
+            if elapsed < 0.2:
+                alpha = int(255 * (elapsed / 0.2))
+            elif self.splash_timer < 0.4:
+                alpha = int(255 * (self.splash_timer / 0.4))
+            else:
+                alpha = 255
+
+            txt_surf = self.font.render(self.splash_text, True, (255, 235, 160))
+            bw = txt_surf.get_width() + 18
+            bh = txt_surf.get_height() + 6
+            bx = (view_w - bw) // 2
+            by = surface.get_height() - 50
+
+            panel = pygame.Surface((bw, bh), pygame.SRCALPHA)
+            panel.fill((16, 12, 22, int(alpha * 0.85)))
+            pygame.draw.rect(panel, (210, 180, 80, alpha), (0, 0, bw, bh), 1, border_radius=3)
+            panel.blit(txt_surf, (9, 3))
+            surface.blit(panel, (bx, by))
 
         # 5. Hover Inspection Tooltip (Noita-style)
         if hover_target is not None and mouse_pos is not None:

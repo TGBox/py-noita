@@ -31,6 +31,7 @@ class InputState:
         self.pause: bool = False
         self.toggle_fullscreen: bool = False
         self.toggle_resolution: bool = False
+        self.scroll_delta: int = 0
 
 
 class InputHandler:
@@ -213,6 +214,13 @@ class InputHandler:
                     state.toggle_fullscreen = True
                 elif event.key == pygame.K_F1:
                     state.toggle_resolution = True
+            elif event.type == pygame.MOUSEWHEEL:
+                state.scroll_delta += event.y
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 4:  # Wheel up
+                    state.scroll_delta += 1
+                elif event.button == 5:  # Wheel down
+                    state.scroll_delta -= 1
             elif event.type == pygame.JOYBUTTONDOWN:
                 if cfg:
                     if event.button == getattr(cfg, "gamepad_btn_inventory", 1):
