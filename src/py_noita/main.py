@@ -859,7 +859,7 @@ class Game:
             self.steam.unlock_achievement("ACH_FOUR_CANNULAS", self.audio)
         distinct_mats = set()
         for gland in self.player.glands:
-            if gland.current_amount >= gland.max_amount and gland.material_id:
+            if gland.current_amount >= gland.capacity and gland.material_id:
                 self.steam.unlock_achievement("ACH_FIRST_GLAND", self.audio)
             if gland.current_amount > 10 and gland.material_id:
                 distinct_mats.add(gland.material_id)

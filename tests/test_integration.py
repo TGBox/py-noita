@@ -96,6 +96,19 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(self.game.state, STATE_GAME_OVER)
         self.assertGreater(self.game.codex.mutagen_essence, 0)
 
+    def test_update_playing_loop(self):
+        """Test active game frame loop via _update_playing."""
+        self.game.start_new_run()
+        self.assertEqual(self.game.state, STATE_PLAYING)
+        # Verify gland properties
+        for gland in self.game.player.glands:
+            self.assertEqual(gland.max_amount, gland.capacity)
+            self.assertGreater(gland.capacity, 0)
+        # Step playing loop for several frames
+        for _ in range(10):
+            self.game._update_playing(0.016, [])
+        self.assertTrue(self.game.player.alive)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,6 +42,10 @@ class LiquidGland:
         self.current_amount: int = 0
         self.material_id: int = MAT_AIR
 
+    @property
+    def max_amount(self) -> int:
+        return self.capacity
+
     def absorb(self, mat_id: int) -> bool:
         """Absorb a liquid pixel into this gland."""
         if self.current_amount == 0:
