@@ -114,6 +114,10 @@ class BioCodex:
         except Exception:
             pass
 
+    def save_codex(self) -> None:
+        """Alias for save() to persist codex progress."""
+        self.save()
+
     def unlock_lore_tablet(self, tablet_id: int) -> bool:
         """Record an ancient lore tablet unlock persistently."""
         if tablet_id not in self.unlocked_lore_tablets:

@@ -108,8 +108,14 @@ class TestShadersAndPostProcessing(unittest.TestCase):
         # Must not throw ValueError
         renderer.present(resized_screen)
         self.assertEqual(renderer.screen_res, (2560, 1017))
-        # With integer scaling on view_h=360, scale factor is 2x -> height is 720
-        self.assertEqual(renderer.dest_rect.height, 720)
+        # Default fill mode fills the entire surface without black bars
+        self.assertEqual(renderer.dest_rect.height, 1017)
+        self.assertEqual(renderer.dest_rect.width, 2560)
+        
+        # With integer scaling and dynamic viewport, scale factor is 2x -> height is 508*2 = 1016
+        renderer.integer_scaling = True
+        renderer.update_dest_rect((2560, 1017))
+        self.assertEqual(renderer.dest_rect.height, 1016)
         self.assertLessEqual(renderer.dest_rect.width, 2560)
         
         # Test SMOOTH filter mode present

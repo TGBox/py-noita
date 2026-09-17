@@ -98,6 +98,9 @@ class DnaTablet:
         self.y = y
         self.title = title
         self.text = text
+        self.lore_text = text
+        self.bonus_biomass: int = 50
+        self.bonus_mutagen: int = 20
         self.width = 16
         self.height = 22
         self.alive: bool = True
